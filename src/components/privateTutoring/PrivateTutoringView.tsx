@@ -40,6 +40,7 @@ import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
+import { enrollmentAddedTitle, privateMoreClassMessage } from "@/lib/bannerEnrollmentCopy"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
@@ -497,19 +498,36 @@ export function PrivateTutoringView() {
     result = await createPrivateTutoringEnrollment({ ...payload, allowDuplicate: true })
    }
    const payStudentId = result.studentIds[0]
+   const modeLabel = createMode === "1to2" ? "一對二" : "一對一"
    pushBanner({
     tone: "success",
-    title: `已建立${createMode === "1to2" ? "一對二" : "一對一"}報讀`,
-    message: `${result.studentNames.join("、")} · ${result.classSubject}。可前往收款／出單。`,
-    action: payStudentId
-     ? {
-        pageLabel: "收款／出單",
-        to: paymentsReceiveHref({
-         studentId: payStudentId,
-         enrollmentClassIds: [result.classId],
-        }),
-       }
-     : undefined,
+    title: enrollmentAddedTitle({
+     studentName: result.studentNames.join("、"),
+     classLabel: modeLabel,
+    }),
+    message: privateMoreClassMessage(modeLabel),
+    actions: [
+     ...(payStudentId
+      ? [
+         {
+          pageLabel: "學生詳細",
+          label: `前往學生詳細頁、報讀班別，定位${modeLabel}課程`,
+          to: `/Students/${encodeURIComponent(payStudentId)}?tab=enrollments`,
+         },
+        ]
+      : []),
+     ...(payStudentId
+      ? [
+         {
+          pageLabel: "收款登記",
+          to: paymentsReceiveHref({
+           studentId: payStudentId,
+           enrollmentClassIds: [result.classId],
+          }),
+         },
+        ]
+      : []),
+    ],
    })
    setCreateOpen(false)
    void reloadStudents()

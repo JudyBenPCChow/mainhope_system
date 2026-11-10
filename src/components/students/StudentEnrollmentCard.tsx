@@ -166,7 +166,7 @@ export function StudentEnrollmentCard({
          size="sm"
         >
          {!bal.isAligned
-          ? `尚差 ${bal.gap} 堂（請經收款／出單增加已繳堂數）`
+          ? `尚差 ${bal.gap} 堂（請到收款登記增加已繳堂數）`
           : bal.leaveAwaitingMakeupCount > 0
             ? `請假待安排 ${bal.leaveAwaitingMakeupCount} 堂`
             : "堂數一致"}

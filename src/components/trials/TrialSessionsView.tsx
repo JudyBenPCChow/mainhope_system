@@ -31,6 +31,7 @@ import { formatClassLabel, formatClassPickLabel, formatClassWhenLabel } from "@/
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
+import { TRIAL_RECORD_FOCUS_LABEL, trialRecordFocusHref } from "@/lib/trialRecordHref"
 import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isActualPresentStatus } from "@/lib/attendancePresence"
@@ -73,6 +74,12 @@ import { formatScheduleOptionLabel } from "@/lib/weekdayUtils"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
 import { useAppBanner } from "@/lib/appBanner"
+import {
+ TRIAL_PAY_MESSAGE,
+ classNameFromPickLabel,
+ timeFromDatedLabel,
+ trialRegisteredTitle,
+} from "@/lib/bannerEnrollmentCopy"
 import {
  getTrialSessionsDataCache,
  invalidateTrialSessionsDataCache,
@@ -253,6 +260,7 @@ export function TrialSessionsView() {
  const [addStudentId, setAddStudentId] = useState("")
  const [prefillName, setPrefillName] = useState("")
  const [searchParams] = useSearchParams()
+ const focusTrialId = searchParams.get("trialId")?.trim() ?? ""
  useEffect(() => {
   const studentId = searchParams.get("studentId")?.trim() ?? ""
   const classId = searchParams.get("classId")?.trim() ?? ""
@@ -813,6 +821,7 @@ export function TrialSessionsView() {
 
  const filtered = useMemo(() => {
   return rows.filter((r) => {
+   if (focusTrialId && r.id === focusTrialId) return true
    if (urlStudentId && r.student_id !== urlStudentId) return false
    if (listScope === "open" && r.outcome !== "open") return false
    if (listScope === "closed" && r.outcome === "open") return false
@@ -848,7 +857,23 @@ export function TrialSessionsView() {
   registrationTab,
   receiptTab,
   personQuery,
+  focusTrialId,
  ])
+
+ const focusReloadFor = useRef<string | null>(null)
+ useEffect(() => {
+  if (!focusTrialId || loading) return
+  if (!rows.some((row) => row.id === focusTrialId)) {
+   if (focusReloadFor.current === focusTrialId) return
+   focusReloadFor.current = focusTrialId
+   void reload()
+   return
+  }
+  const frame = requestAnimationFrame(() => {
+   document.getElementById(`trial-row-${focusTrialId}`)?.scrollIntoView({ block: "center" })
+  })
+  return () => cancelAnimationFrame(frame)
+ }, [focusTrialId, loading, rows, filtered, reload])
 
  const activeFilterCount = useMemo(() => {
   let n = 0
@@ -1122,7 +1147,7 @@ export function TrialSessionsView() {
   setAddSaving(true)
   setAddErr(null)
   try {
-   await insertTrialSession({
+   const trialId = await insertTrialSession({
     student_id: addStudentId,
     class_id: addClassId,
     schedule_id: addScheduleId,
@@ -1133,19 +1158,33 @@ export function TrialSessionsView() {
     counts_toward_headcount: addCountsHeadcount === "1",
    })
    setAddOpen(false)
+   const studentName =
+    studentPickList.find((s) => s.id === addStudentId)?.full_name ?? ""
    pushBanner({
     tone: "success",
-    title: "已建立試堂",
-    message:
-     "請到收款登記出單並確認收款後，學生才會出現在點名紙（含 $0 免費試堂）。連堂請核對堂數。",
+    title: trialRegisteredTitle({
+     studentName,
+     dateYmd: selectedSched.date,
+     classLabel: classNameFromPickLabel(selectedAddClass?.classLabel || selectedAddClass?.label || ""),
+     timeLabel: timeFromDatedLabel(selectedSched.date, selectedSched.label),
+    }),
+    message: TRIAL_PAY_MESSAGE,
+    actions: [
+     {
+      pageLabel: "試堂紀錄",
+      label: TRIAL_RECORD_FOCUS_LABEL,
+      to: trialRecordFocusHref(trialId),
+     },
+     {
+      pageLabel: "收款登記",
+      to: paymentsReceiveHref({
+       studentId: addStudentId,
+       trials: [{ classId: addClassId, trialType: addTrialType }],
+      }),
+     },
+    ],
    })
    await reload()
-   navigate(
-    paymentsReceiveHref({
-     studentId: addStudentId,
-     trials: [{ classId: addClassId, trialType: addTrialType }],
-    })
-   )
   } catch (e) {
    const msg = e instanceof Error ? e.message : "建立試堂失敗"
    reportUserFacingError(e, { source: "TrialSessionsView.submitAdd", setErr: setAddErr, userMessage: msg })
@@ -1408,15 +1447,17 @@ export function TrialSessionsView() {
           ? `${String(r.sched_start).slice(0, 5)}–${String(r.sched_end).slice(0, 5)}`
           : "看排程"
         const selected = previewTrialId === r.id || mobileTrialId === r.id
+        const located = focusTrialId === r.id
         return (
         <StaggerItem
          key={r.id}
          as="tr"
+         id={`trial-row-${r.id}`}
          onClick={() => openTrial(r)}
          className={cn(
           "cursor-pointer border-b border-border last:border-0 transition-colors",
-          selected ? "bg-info/15 hover:bg-info/20" : "hover:bg-muted/60",
-          !selected && idx % 2 === 1 && "bg-muted/20"
+          located || selected ? "bg-info/15 hover:bg-info/20" : "hover:bg-muted/60",
+          !located && !selected && idx % 2 === 1 && "bg-muted/20"
          )}
         >
          <td className="px-3 py-2 align-top">
@@ -2059,7 +2100,7 @@ export function TrialSessionsView() {
         title: e.headline,
         message: [
          e.message,
-         "報讀已建立；若試堂仍待跟進，可再開正式報讀只補結結果。到課宣告請到學生詳情跟進。",
+         "報讀已建立；若試堂仍待跟進，可再開正式報讀只補結結果。請到學生詳情核對之後要上的堂。",
         ]
          .filter(Boolean)
          .join(" "),

@@ -2,14 +2,26 @@ import { useEffect, useMemo, useState } from "react"
 
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
 import { Field, localTodayYmd } from "@/components/frontDesk/frontDeskUi"
+import { invalidateTrialSessionsDataCache } from "@/components/trials/trialSessionsState"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
+import {
+ ENROLLMENT_PAY_MESSAGE,
+ TRIAL_PAY_MESSAGE,
+ classNameFromPickLabel,
+ enrollmentAddedTitle,
+ privateMoreClassMessage,
+ timeFromDatedLabel,
+ trialRegisteredTitle,
+} from "@/lib/bannerEnrollmentCopy"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { isEndedClassStatus } from "@/lib/classOperatingStatus"
-import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
+import { classDisplayName, formatClassLabel, formatClassWhenLabel } from "@/lib/courseLabel"
+import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
+import { TRIAL_RECORD_FOCUS_LABEL, trialRecordFocusHref } from "@/lib/trialRecordHref"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
  SINGLE_SESSION_ENROLLMENT,
@@ -247,6 +259,7 @@ export function EnrollClassStep({
     isSingle ? pickScheduleIds : undefined,
     null
    )
+   const enrolledClassId = pickClass
    setPickClass("")
    setPickForm(isSummer ? "第一期" : "full")
    setPickScheduleIds([])
@@ -254,8 +267,22 @@ export function EnrollClassStep({
    const count = list.filter((e) => e.status !== "已退讀").length
    pushBanner({
     tone: "success",
-    title: "已加入班別",
-    message: "報讀已建立。請繼續收款，確認學費後權益池才會增加可上課堂數。",
+    title: enrollmentAddedTitle({
+     studentName: student.full_name ?? "",
+     classLabel: classDisplayName({
+      subject: pickedClassOption?.subject,
+      courseName: pickedClassOption?.courseName,
+     }),
+     whenLabel: formatClassWhenLabel(pickedClassOption?.dayOfWeek, pickedClassOption?.timeSlot),
+    }),
+    message: ENROLLMENT_PAY_MESSAGE,
+    action: {
+     pageLabel: "收款登記",
+     to: paymentsReceiveHref({
+      studentId: student.id,
+      enrollmentClassIds: [enrolledClassId],
+     }),
+    },
    })
    onEnrollmentCountChange(count)
   } catch (e) {
@@ -298,8 +325,9 @@ export function EnrollClassStep({
    customClassSubject: custom || null,
   }
   try {
+   let created: Awaited<ReturnType<typeof createPrivateTutoringEnrollment>>
    try {
-    await createPrivateTutoringEnrollment(payload)
+    created = await createPrivateTutoringEnrollment(payload)
    } catch (e) {
     if (e instanceof WrittenSideEffectError) throw e
     const msg = e instanceof Error ? e.message : String(e)
@@ -310,7 +338,7 @@ export function EnrollClassStep({
       confirmText: "仍要建立",
      })
      if (!ok) return
-     await createPrivateTutoringEnrollment({ ...payload, allowDuplicate: true })
+     created = await createPrivateTutoringEnrollment({ ...payload, allowDuplicate: true })
     } else {
      throw e
     }
@@ -321,7 +349,28 @@ export function EnrollClassStep({
    setPrivateClassName("")
    const list = await reloadEnrollments()
    const count = list.filter((e) => e.status !== "已退讀").length
-   pushBanner({ tone: "success", title: "已建立一對一報讀", message: "可再新增其他班別，或繼續收款。" })
+   pushBanner({
+    tone: "success",
+    title: enrollmentAddedTitle({
+     studentName: created.studentNames[0] ?? student.full_name ?? "",
+     classLabel: "一對一",
+    }),
+    message: privateMoreClassMessage("一對一"),
+    actions: [
+     {
+      pageLabel: "學生詳細",
+      label: "前往學生詳細頁、報讀班別，定位一對一課程",
+      to: `/Students/${encodeURIComponent(student.id)}?tab=enrollments`,
+     },
+     {
+      pageLabel: "收款登記",
+      to: paymentsReceiveHref({
+       studentId: student.id,
+       enrollmentClassIds: [created.classId],
+      }),
+     },
+    ],
+   })
    onEnrollmentCountChange(count)
   } catch (e) {
    if (e instanceof WrittenSideEffectError) {
@@ -349,7 +398,7 @@ export function EnrollClassStep({
   setTrialSaving(true)
   setErr(null)
   try {
-   await insertTrialSession({
+   const trialId = await insertTrialSession({
     student_id: student.id,
     class_id: trialClassId,
     schedule_id: trialScheduleId,
@@ -359,16 +408,37 @@ export function EnrollClassStep({
     remarks: trialRemarks.trim() || null,
     counts_toward_headcount: trialCountsHeadcount === "1",
    })
+   invalidateTrialSessionsDataCache()
    setTrialClassId("")
    setTrialScheduleId("")
    setTrialType("免費試堂")
    setTrialCountsHeadcount("")
    setTrialRemarks("")
    const counts = await syncCounts()
+   const trialClass = trialClassOptions.find((c) => c.id === trialClassId)
    pushBanner({
     tone: "success",
-    title: "已登記試堂",
-    message: "請繼續收款出單並確認；確認後先上點名紙（含 $0 免費試堂）。",
+    title: trialRegisteredTitle({
+     studentName: student.full_name ?? "",
+     dateYmd: selectedSched.date,
+     classLabel: classNameFromPickLabel(trialClass?.label ?? ""),
+     timeLabel: timeFromDatedLabel(selectedSched.date, selectedSched.label),
+    }),
+    message: TRIAL_PAY_MESSAGE,
+    actions: [
+     {
+      pageLabel: "試堂紀錄",
+      label: TRIAL_RECORD_FOCUS_LABEL,
+      to: trialRecordFocusHref(trialId),
+     },
+     {
+      pageLabel: "收款登記",
+      to: paymentsReceiveHref({
+       studentId: student.id,
+       trials: [{ classId: trialClassId, trialType }],
+      }),
+     },
+    ],
    })
    onTrialCountChange(counts.trialCount)
   } catch (e) {
@@ -510,7 +580,7 @@ export function EnrollClassStep({
         </div>
        ) : null}
        <p className="text-xs text-muted-foreground">
-        報讀只建立就讀關係。可上課堂數須經收款確認後才入權益池，請勿在此手動填寫堂數。
+        報讀只建立就讀關係。確認收款後，已繳堂數才會增加。請勿在此手動填寫堂數。
        </p>
       </>
      ) : null}

@@ -20,6 +20,7 @@ import {
   useOpenStudentRecord,
   useRecordPreview,
 } from "@/components/recordPreview/recordPreviewContext"
+import { invalidateTrialSessionsDataCache } from "@/components/trials/trialSessionsState"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -34,6 +35,13 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
+import {
+  TRIAL_PAY_MESSAGE,
+  classNameFromPickLabel,
+  formatClockRange,
+  trialRegisteredCountTitle,
+  trialRegisteredTitle,
+} from "@/lib/bannerEnrollmentCopy"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { buildTrialInviteNotifyMessage } from "@/lib/trialInviteNotifyMessage"
 import {
@@ -48,6 +56,7 @@ import {
 } from "@/lib/trialInviteTypes"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
+import { TRIAL_RECORD_FOCUS_LABEL, trialRecordFocusHref } from "@/lib/trialRecordHref"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { statusToTagTone } from "@/lib/statusTag"
 import { formatRecentTrialSubjectsCaption } from "@/lib/trialInviteRecentSubjects"
@@ -566,6 +575,7 @@ export function TrialInviteCampaignView() {
         trialType: approveTrialType,
       })
       const createdCount = result.trial_sessions_created ?? 0
+      invalidateTrialSessionsDataCache()
       const isFree = trialTypeCategory(approveTrialType) === "free"
       if (isFree) {
         let trialIds = result.trial_session_ids
@@ -601,8 +611,7 @@ export function TrialInviteCampaignView() {
           pushBanner({
             tone: "warning",
             title: "試堂已核准，但尚未上點名紙",
-            message:
-              "免費試堂 $0 單未能自動完成。請在收款登記確認後，學生才會出現在點名紙。",
+            message: "免費試堂的 $0 單未完成。請到收款登記確認，確認後才會出現在點名紙。",
           })
           setReviewRow(null)
           setApproveHeadcount("")
@@ -611,23 +620,41 @@ export function TrialInviteCampaignView() {
           return
         }
       } else {
+        const onlyLine = createdCount === 1 ? reviewRow.lines[0] : undefined
+        const focusTrialId = result.trial_session_ids[0] ?? ""
         pushBanner({
           tone: "success",
-          title: "已核准試堂",
-          message: `已建立 ${createdCount} 筆試堂；請完成收款確認後，學生才會出現在點名紙。`,
+          title: onlyLine
+            ? trialRegisteredTitle({
+                approved: true,
+                studentName: reviewRow.student_name,
+                dateYmd: onlyLine.scheduled_date ?? "",
+                classLabel: classNameFromPickLabel(onlyLine.class_label),
+                timeLabel: formatClockRange(onlyLine.start_time, onlyLine.end_time),
+              })
+            : trialRegisteredCountTitle(reviewRow.student_name, createdCount),
+          message: TRIAL_PAY_MESSAGE,
+          actions: [
+            {
+              pageLabel: "試堂紀錄",
+              label: focusTrialId ? TRIAL_RECORD_FOCUS_LABEL : undefined,
+              to: trialRecordFocusHref(focusTrialId),
+            },
+            {
+              pageLabel: "收款登記",
+              to: paymentsReceiveHref({
+                studentId,
+                trials:
+                  classIds.length > 0
+                    ? classIds.map((classId) => ({ classId, trialType: approveTrialType }))
+                    : [{ classId: "", trialType: approveTrialType }],
+              }),
+            },
+          ],
         })
         setReviewRow(null)
         setApproveHeadcount("")
         await reload()
-        navigate(
-          paymentsReceiveHref({
-            studentId,
-            trials:
-              classIds.length > 0
-                ? classIds.map((classId) => ({ classId, trialType: approveTrialType }))
-                : [{ classId: "", trialType: approveTrialType }],
-          }),
-        )
         return
       }
       setReviewRow(null)

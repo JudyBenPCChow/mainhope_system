@@ -115,13 +115,13 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
     pushBanner({ tone: "info", title: "此單據已作廢" })
     return
    }
-   const bits: string[] = ["請檢查該生報讀與堂數對帳是否仍正確；作廢不自動退班。"]
-   if (result.emailSent) bits.unshift("已電郵通知管理層。")
-   else if (result.emailError) bits.unshift(`通知未送出：${result.emailError}`)
-   else if (result.notifySkipped) bits.unshift("待繳單據作廢，未寄管理層電郵。")
-   if (target.studentId) {
-    bits.push("金額錯請到收款登記重開正確單。")
-   }
+   const check = "請核對這生的報讀與堂數；作廢不會自動退讀。"
+   const bits: string[] = []
+   if (result.emailSent) bits.push(`已通知管理層。${check}`)
+   else if (result.emailError) bits.push(`通知未送出：${result.emailError}。${check}`)
+   else if (result.notifySkipped) bits.push(`這張是待繳單，沒有通知管理層。${check}`)
+   else bits.push(check)
+   if (target.studentId) bits.push("金額若有錯，請到收款登記重開。")
    pushBanner({
     tone: result.emailError ? "warning" : "success",
     title: "單據已作廢",

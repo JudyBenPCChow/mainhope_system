@@ -1715,13 +1715,16 @@ export async function insertEnrollment(
   }
  }
  if (trialErr || poolErr) {
-  const parts: string[] = []
-  if (trialErr) parts.push("未能結束未結案試堂")
-  if (poolErr) parts.push("到課宣告未能完成")
+  const headline =
+   trialErr && poolErr
+    ? "報讀已寫入，但試堂未結束，之後的堂也未排好"
+    : trialErr
+     ? "報讀已寫入，但試堂未結束"
+     : "報讀已寫入，但之後的堂未排好"
   const details = [trialErr, poolErr]
    .map((err) => (err ? writtenSideEffectDetail(err) : undefined))
    .filter((detail): detail is string => Boolean(detail))
-  throw new WrittenSideEffectError(`報讀已寫入，但${parts.join("，且")}`, {
+  throw new WrittenSideEffectError(headline, {
    cause: poolErr ?? trialErr,
    detail: details.length > 0 ? details.join("；") : undefined,
    enrollmentId,
@@ -1794,7 +1797,7 @@ export async function updateEnrollmentPeriod(
   })
  } catch (poolErr) {
   console.warn("[updateEnrollmentPeriod] remintPoolAfterPeriodChange", poolErr)
-  throw new WrittenSideEffectError("報讀形式已更新，但到課宣告未能完成", {
+  throw new WrittenSideEffectError("報讀形式已更新，但之後的堂未排好", {
    cause: poolErr,
    detail: writtenSideEffectDetail(poolErr),
    enrollmentId: id,
@@ -1837,7 +1840,7 @@ export async function updateEnrollmentSessions(
   })
  } catch (poolErr) {
   console.warn("[updateEnrollmentSessions] syncSingleLessonDeclarations", poolErr)
-  throw new WrittenSideEffectError("選堂已更新，但到課宣告未能完成", {
+  throw new WrittenSideEffectError("選堂已更新，但之後的堂未排好", {
    cause: poolErr,
    detail: writtenSideEffectDetail(poolErr),
    enrollmentId,
@@ -2006,7 +2009,7 @@ export async function purgeMistakenEnrollment(opts: {
   .eq("id", enrollmentId)
  if (delErr) {
   throw new Error(
-   `報讀刪除失敗（該班到課宣告可能已作廢）：${delErr.message}`
+   `報讀刪除失敗（這班已排的堂可能已取消）：${delErr.message}`
   )
  }
 
@@ -2149,6 +2152,9 @@ export type ClassOption = {
  subject: string
  courseCode: string | null
  label: string
+ courseName: string | null
+ dayOfWeek: string | null
+ timeSlot: string | null
  courseMode: CourseMode
  classKind: ClassKind
  enrollmentNotice: string | null
@@ -2215,6 +2221,9 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
    courseCode:
     row.course_code_full != null ? String(row.course_code_full) : null,
    label: buildClassOptionLabel(row),
+   courseName: course?.course_name != null ? String(course.course_name) : null,
+   dayOfWeek: row.day_of_week != null ? String(row.day_of_week) : null,
+   timeSlot: row.time_slot != null ? String(row.time_slot) : null,
    courseMode,
    classKind: kind,
    enrollmentNotice:

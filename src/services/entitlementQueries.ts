@@ -1300,7 +1300,7 @@ export async function syncDeclarationsAfterSchedulesAdded(classId: string): Prom
     failures.length > 1 ? `共 ${failures.length} 筆` : null,
     writtenSideEffectDetail(failures[0]),
    ].filter((part): part is string => Boolean(part))
-   throw new WrittenSideEffectError("排程已寫入，但到課宣告未能完成", {
+   throw new WrittenSideEffectError("排程已寫入，但之後的堂未排好", {
     cause: failures[0],
     detail: detailParts.length > 0 ? detailParts.join("；") : undefined,
    })

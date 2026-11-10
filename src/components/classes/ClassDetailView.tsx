@@ -59,6 +59,11 @@ import { summarizeClassTeacherScheduleMismatch } from "@/lib/privateClassTeacher
 import { sortSchedulesByDateTime } from "@/services/privateTutoringQueries"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { useAppBanner } from "@/lib/appBanner"
+import {
+ ENROLLMENT_PAY_MESSAGE,
+ enrollmentAddedTitle,
+ enrollmentLeavePayMessage,
+} from "@/lib/bannerEnrollmentCopy"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
@@ -72,7 +77,7 @@ import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
-import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
+import { classDisplayName, formatClassLabel, formatClassWhenLabel } from "@/lib/courseLabel"
 import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
 import { classKindLabel, resolveClassKind } from "@/lib/privateClassKind"
 import {
@@ -1378,10 +1383,22 @@ export function ClassDetailView() {
    invalidateEnrollmentChangesDataCache()
    const addedName =
     allStudents.find((s) => s.id === studentId)?.full_name?.trim() || "學生"
+   const addedTitle = enrollmentAddedTitle({
+    studentName: addedName,
+    classLabel: classDisplayName({ subject: cls?.subject, courseName: cls?.course_name }),
+    whenLabel: formatClassWhenLabel(cls?.day_of_week, cls?.time_slot),
+   })
+   const payAction = {
+    pageLabel: "收款登記",
+    to: paymentsReceiveHref({
+     studentId,
+     enrollmentClassIds: [cid],
+    }),
+   }
    if (sideEffect) {
     const leaveNote =
      firstLeaveId && autoLeaveCount > 0
-      ? ` 已為 ${autoLeaveCount} 堂過去排程建立請假（待安排）。`
+      ? ` 已同步建立 ${autoLeaveCount} 堂請假。`
       : ""
     reportUserFacingError(sideEffect, { source: "ClassDetailView.onAddStudentToClass" })
     pushBanner({
@@ -1392,28 +1409,16 @@ export function ClassDetailView() {
    } else if (firstLeaveId) {
     pushBanner({
      tone: "success",
-     title: `已加入報讀：${addedName}`,
-     message: `報讀已建立；已為 ${autoLeaveCount} 堂過去排程建立請假（待安排）。請安排補堂，並前往收款／出單確認學費。`,
-     action: {
-      pageLabel: "請假管理",
-      to: `/LeaveManagement?${new URLSearchParams({
-       studentId,
-       record: firstLeaveId,
-      }).toString()}`,
-     },
+     title: addedTitle,
+     message: enrollmentLeavePayMessage(autoLeaveCount),
+     action: payAction,
     })
    } else {
     pushBanner({
      tone: "success",
-     title: `已加入報讀：${addedName}`,
-     message: "報讀已建立。請前往收款／出單確認學費，權益池才會增加可上課堂數。",
-     action: {
-      pageLabel: "收款／出單",
-      to: paymentsReceiveHref({
-       studentId,
-       enrollmentClassIds: [cid],
-      }),
-     },
+     title: addedTitle,
+     message: ENROLLMENT_PAY_MESSAGE,
+     action: payAction,
     })
    }
    setAddStudentId("")
@@ -1525,7 +1530,7 @@ export function ClassDetailView() {
   if (
    !(await confirmDialog({
     title: "手誤清除報讀",
-    description: `確定清除「${studentName}」在此班的報讀？會刪除該筆報讀及增退紀錄，並作廢該班到課宣告。已扣堂數不會退回。若本班已有出席，請改用退讀或轉時間。`,
+    description: `確定清除「${studentName}」在此班的報讀？會刪除該筆報讀及增退紀錄，並取消這生在這班已排的堂。已扣堂數不會退回。若本班已有出席，請改用退讀或轉時間。`,
     confirmText: "確認清除",
     tone: "destructive",
     confirmInput: {
@@ -1695,7 +1700,7 @@ export function ClassDetailView() {
       ? `原應出席：${formatStudentNameList(result.attendingNames)}`
       : null,
      result.singleSessionMoved > 0
-      ? `單堂選堂已改掛 ${result.singleSessionMoved} 人`
+      ? `有 ${result.singleSessionMoved} 人的單堂已改到新的一堂`
       : null,
     ]
      .filter(Boolean)
@@ -2454,7 +2459,7 @@ export function ClassDetailView() {
           )}
           {!isPrivateClass ? (
            <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-            報讀只建立就讀關係。可上課堂數須經收款確認後才入權益池，請勿在此手動填寫堂數。
+            報讀只建立就讀關係。確認收款後，已繳堂數才會增加。請勿在此手動填寫堂數。
            </p>
           ) : null}
           {!isPrivateClass ? (

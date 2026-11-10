@@ -50,7 +50,7 @@ export function writtenSideEffectFrom(
   })
  }
  return new WrittenSideEffectError(
-  extras?.headline ?? "排程已寫入，但到課宣告未能完成",
+  extras?.headline ?? "排程已寫入，但之後的堂未排好",
   {
    cause: err,
    detail: writtenSideEffectDetail(err),
