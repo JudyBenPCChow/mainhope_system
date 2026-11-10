@@ -598,19 +598,38 @@ async function buildPayslipPdfBlob(html: string, footerBase: string): Promise<Bl
   }
 }
 
+export function buildPayrollPayslipHtml(
+  month: PayrollMonthMock,
+  teachers: PayrollTeacherRow[]
+): string {
+  return buildHtml(month, teachers)
+}
+
+export function payrollPayslipFooter(month: PayrollMonthMock): string {
+  const ver = month.calc?.version ?? 0
+  return `${COMPANY.nameZh} · 計糧工資單（審批用）· ${month.monthLabel} · v#${ver}`
+}
+
+export function payrollPayslipFilename(month: PayrollMonthMock, teachers: PayrollTeacherRow[]): string {
+  const ver = month.calc?.version ?? 0
+  return teachers.length === 1
+    ? `明學計糧工資單_${month.monthKey}_v${ver}_${teachers[0]!.name.replace(/[\\/:*?"<>|]+/g, "_")}.pdf`
+    : `明學計糧工資單_${month.monthKey}_v${ver}_${teachers.length}人.pdf`
+}
+
+/** 瀏覽器內把工資單 HTML 排成與計糧頁下載相同的 PDF。 */
+export function renderPayrollPayslipPdfBlob(html: string, footer: string): Promise<Blob> {
+  return buildPayslipPdfBlob(html, footer)
+}
+
 /** 下載審批用工資單 PDF（對齊學費收據品牌排版） */
 export async function downloadPayrollPayslipPdf(
   month: PayrollMonthMock,
   teachers: PayrollTeacherRow[]
 ): Promise<string> {
-  const html = buildHtml(month, teachers)
-  const ver = month.calc?.version ?? 0
-  const footer = `${COMPANY.nameZh} · 計糧工資單（審批用）· ${month.monthLabel} · v#${ver}`
-  const blob = await buildPayslipPdfBlob(html, footer)
-  const filename =
-    teachers.length === 1
-      ? `明學計糧工資單_${month.monthKey}_v${ver}_${teachers[0]!.name.replace(/[\\/:*?"<>|]+/g, "_")}.pdf`
-      : `明學計糧工資單_${month.monthKey}_v${ver}_${teachers.length}人.pdf`
+  const html = buildPayrollPayslipHtml(month, teachers)
+  const blob = await renderPayrollPayslipPdfBlob(html, payrollPayslipFooter(month))
+  const filename = payrollPayslipFilename(month, teachers)
   downloadBlob(blob, filename)
   return filename
 }
