@@ -9,7 +9,6 @@ import {
  Inbox,
  LayoutGrid,
  CalendarRange,
- Wallet,
 } from "lucide-react"
 
 import { HW_PATH } from "@/lib/homeworkTutoringNav"
@@ -62,8 +61,8 @@ export function getMobileBottomTabs(
   case "finance":
    return [
     { path: "/Home", label: "首頁", icon: Home },
-    { path: "/Payroll", label: "計糧", icon: Wallet },
     { path: "/AttendanceRecords", label: "出席", icon: ClipboardCheck },
+    { path: "/PaymentHistory", label: "繳費", icon: ClipboardList },
     { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
    ]
   case "manager":

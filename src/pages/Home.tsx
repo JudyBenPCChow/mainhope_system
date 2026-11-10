@@ -24,7 +24,7 @@ export default function Home() {
  }
 
  if (role === "finance") {
-  return <Navigate to="/Payroll" replace />
+  return <Navigate to="/Login" replace />
  }
 
  if (role === "admin") {

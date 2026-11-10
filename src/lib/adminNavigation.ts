@@ -196,7 +196,6 @@ export const ADMIN_ALL_FEATURES_NAV: NavEntryDef[] = [
    { path: "/PaymentDiscounts", label: "優惠折扣", roles: ["admin"], icon: Percent },
    { path: "/ExpenseJournalRecords", label: "日記帳紀錄", roles: ["admin"], icon: ScrollText },
    { path: "/ExpenseJournal", label: "日記帳入帳", roles: ["admin"], icon: NotebookPen },
-   { path: "/Payroll", label: "計糧", roles: ["admin"], icon: Wallet },
   ],
  },
  {

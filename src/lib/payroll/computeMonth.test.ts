@@ -396,4 +396,26 @@ describe("payroll month compute", () => {
     }).teachers[0]!
     expect(judy.lines.find((line) => line.kind === "wfh")?.amount).toBe(2000)
   })
+
+  it("adds approved home-work hours on top of split-rate pay", () => {
+    const christine = computePayrollMonth({
+      monthKey: "2026-10",
+      teachers: [
+        {
+          teacherId: "cfan",
+          teacherName: "Christine Fan",
+          rate: rate("cfan", "分成制", {
+            personal_pct: 0.6,
+            commission_pct: 0.1,
+            commission_subject_codes: ["CHI"],
+          }),
+          approvedHours: 64,
+          extraWfhHourlyRate: 100,
+        },
+      ],
+      lessons: [],
+    }).teachers[0]!
+    expect(christine.lines.find((line) => line.kind === "wfh")?.amount).toBe(6400)
+    expect(christine.grossBeforeAdj).toBe(6400)
+  })
 })
