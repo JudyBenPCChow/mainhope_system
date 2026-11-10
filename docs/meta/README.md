@@ -10,6 +10,7 @@
 | Session 交接 | [`handoffs/`](handoffs/) |
 | UI 規範 | [`UI_DESIGN_INSTRUCTIONS.md`](UI_DESIGN_INSTRUCTIONS.md) |
 | RLS | [`RLS_ROLLOUT.md`](RLS_ROLLOUT.md) |
+| RLS 逐列重算（已審，方案已修正，未改庫） | [`RLS_PER_ROW_INITPLAN_REVIEW.md`](RLS_PER_ROW_INITPLAN_REVIEW.md) |
 | Migration 套用 | [`SUPABASE_MIGRATION_APPLY.md`](SUPABASE_MIGRATION_APPLY.md) |
 
 根目錄 [`AGENTS.md`](../../AGENTS.md) 仍係 agent 預設入口。
