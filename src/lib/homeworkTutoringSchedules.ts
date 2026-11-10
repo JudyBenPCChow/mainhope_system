@@ -1,6 +1,7 @@
 /** 功輔編更 → schedules 佔室（對齊 SCHEDULING_RULES §4） */
 
 import type { HomeworkDivision } from "@/lib/homeworkTutoringFees"
+import { defaultRosterPolicyForNewSchedule } from "@/lib/scheduleRosterPolicy"
 
 export const HOMEWORK_OCCUPANCY_START = "15:15"
 export const HOMEWORK_SCHEDULE_REMARKS = "功輔佔室"
@@ -148,4 +149,32 @@ export function homeworkScheduleSlotsFromDutyDays(
   roomIdByName: Map<string, string>
 ): HomeworkScheduleSlot[] {
   return dutyDays.flatMap((d) => homeworkScheduleSlotsFromDutyDay(d, yearMonth, roomIdByName))
+}
+
+/** 與逐筆 insertScheduleRow 相同欄位：正班、class_all、不建宣告。 */
+export function homeworkOccupancyScheduleInserts(
+  classId: string,
+  slots: HomeworkScheduleSlot[]
+) {
+  const rosterPolicy = defaultRosterPolicyForNewSchedule({
+    isExtraLesson: false,
+    remarks: HOMEWORK_SCHEDULE_REMARKS,
+  })
+  return slots.map((slot) => ({
+    class_id: classId,
+    teacher_id: slot.teacher_id,
+    classroom_id: slot.classroom_id,
+    scheduled_date: slot.scheduled_date,
+    start_time: slot.start_time,
+    end_time: slot.end_time,
+    status: "正常" as const,
+    remarks: HOMEWORK_SCHEDULE_REMARKS,
+    is_extra_lesson: false,
+    roster_policy: rosterPolicy,
+    roster_confirmed_at: null,
+    roster_confirmed_by: null,
+    session_number: null,
+    consecutive_group_id: null,
+    consecutive_slot_index: null,
+  }))
 }
