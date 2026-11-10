@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   HOMEWORK_OCCUPANCY_START,
+  HOMEWORK_SCHEDULE_REMARKS,
+  homeworkOccupancyScheduleInserts,
   homeworkScheduleSlotsFromDutyDay,
   mdKeyToIso,
   monthDateRange,
@@ -154,5 +156,37 @@ describe("homeworkTutoringSchedules", () => {
       teacher_id: null,
       roomName: "17E",
     })
+  })
+
+  it("builds occupancy inserts as class-all rows", () => {
+    const rows = homeworkOccupancyScheduleInserts("class-1", [
+      {
+        scheduled_date: "2026-11-02",
+        start_time: HOMEWORK_OCCUPANCY_START,
+        end_time: "20:00",
+        classroom_id: "room-1",
+        teacher_id: "teacher-1",
+        roomName: "17D",
+      },
+    ])
+    expect(rows).toEqual([
+      {
+        class_id: "class-1",
+        teacher_id: "teacher-1",
+        classroom_id: "room-1",
+        scheduled_date: "2026-11-02",
+        start_time: "15:15",
+        end_time: "20:00",
+        status: "正常",
+        remarks: HOMEWORK_SCHEDULE_REMARKS,
+        is_extra_lesson: false,
+        roster_policy: "class_all",
+        roster_confirmed_at: null,
+        roster_confirmed_by: null,
+        session_number: null,
+        consecutive_group_id: null,
+        consecutive_slot_index: null,
+      },
+    ])
   })
 })

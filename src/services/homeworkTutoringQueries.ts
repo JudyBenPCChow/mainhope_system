@@ -13,6 +13,7 @@ import {
 } from "@/lib/homeworkTutoringFees"
 import {
   HOMEWORK_SCHEDULE_REMARKS,
+  homeworkOccupancyScheduleInserts,
   homeworkScheduleSlotsFromDutyDays,
   mdKeyToIso,
   monthDateRange,
@@ -26,7 +27,7 @@ import {
   type HomeworkDutyDay,
 } from "@/lib/homeworkTutoringUi"
 import { fetchClassrooms } from "@/services/classroomQueries"
-import { insertScheduleRow } from "@/services/scheduleWriteQueries"
+import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 
 export type HomeworkClassRef = {
   id: string
@@ -430,6 +431,32 @@ export async function upsertHomeworkAvailability(input: {
   if (error) throw error
 }
 
+export async function upsertHomeworkAvailabilityBatch(input: {
+  targetMonth: string
+  rows: Array<{
+    teacherId: string
+    status: "草稿" | "已提交"
+    entries: Record<string, AvailEntry>
+  }>
+}): Promise<void> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  if (input.rows.length === 0) return
+  const month = monthFirstDay(input.targetMonth)
+  const now = new Date().toISOString()
+  const { error } = await supabase.from("homework_tutoring_availability").upsert(
+    input.rows.map((row) => ({
+      teacher_id: row.teacherId,
+      target_month: month,
+      status: row.status,
+      entries: row.entries,
+      submitted_at: row.status === "已提交" ? now : null,
+      updated_at: now,
+    })),
+    { onConflict: "teacher_id,target_month" }
+  )
+  if (error) throw error
+}
+
 function emptyHomeworkRosterMonth(yearMonth: string): HomeworkRosterMonth {
   return { id: "", yearMonth: yearMonth.slice(0, 7), status: "未編更", days: [] }
 }
@@ -669,25 +696,89 @@ export async function syncHomeworkOccupancySchedules(opts: {
   const slots = homeworkScheduleSlotsFromDutyDays(opts.dutyDays, opts.yearMonth, roomIdByName)
 
   await clearHomeworkOccupancySchedules(opts.classId, opts.yearMonth)
+  if (slots.length === 0) return 0
 
-  let count = 0
-  for (const slot of slots) {
-    await insertScheduleRow(
-      {
-        class_id: opts.classId,
-        teacher_id: slot.teacher_id,
-        classroom_id: slot.classroom_id,
-        scheduled_date: slot.scheduled_date,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        status: "正常",
-        remarks: HOMEWORK_SCHEDULE_REMARKS,
-      },
-      { skipInboxEvent: true, skipDeclarationSync: true }
-    )
-    count += 1
+  const rows = homeworkOccupancyScheduleInserts(opts.classId, slots)
+  const { error } = await supabase.from("schedules").insert(rows)
+  if (error) throw error
+  const dates = slots.map((slot) => slot.scheduled_date).sort()
+  void logMgmtAuditAction({
+    action: "新增排程",
+    detail: `功輔佔室 batch; count=${rows.length}; class_id=${opts.classId}; from=${dates[0]}; to=${dates[dates.length - 1]}`,
+  })
+  return rows.length
+}
+
+/** 整月當值日與指派各一次寫入，避免逐日來回。同一日以後者為準。 */
+async function replaceHomeworkRosterDutyDays(
+  rosterMonthId: string,
+  yearMonth: string,
+  dutyDays: PublishHomeworkDutyDayInput[]
+): Promise<void> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const byDate = new Map<string, PublishHomeworkDutyDayInput>()
+  for (const day of dutyDays) {
+    const iso = mdKeyToIso(yearMonth, day.date)
+    if (!iso) continue
+    byDate.set(iso, day)
   }
-  return count
+  const dated = [...byDate.entries()]
+  if (dated.length === 0) return
+
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from("homework_tutoring_duty_days")
+    .upsert(
+      dated.map(([iso, day]) => ({
+        roster_month_id: rosterMonthId,
+        duty_date: iso,
+        session_start: day.start,
+        session_end: day.end,
+        holiday_label: day.holiday?.trim() || null,
+        secondary_room: day.secondaryRoom ?? null,
+        primary_room: day.primaryRoom ?? null,
+        secondary_teacher_id: day.secondaryTeacherId || null,
+        primary_teacher_id: day.primaryTeacherId || null,
+        updated_at: now,
+      })),
+      { onConflict: "roster_month_id,duty_date" }
+    )
+    .select("id, duty_date")
+  if (error) throw error
+
+  const idByDate = new Map<string, string>()
+  for (const raw of data ?? []) {
+    const row = raw as { id: string; duty_date: string }
+    idByDate.set(String(row.duty_date).slice(0, 10), String(row.id))
+  }
+  if (idByDate.size !== dated.length) throw new Error("儲存當值日未完成")
+
+  const dutyDayIds = [...idByDate.values()]
+  const { error: delErr } = await supabase
+    .from("homework_tutoring_duty_assignments")
+    .delete()
+    .in("duty_day_id", dutyDayIds)
+  if (delErr) throw delErr
+
+  const assignmentRows = dated.flatMap(([iso, day]) => {
+    if (day.holiday) return []
+    const dutyDayId = idByDate.get(iso)
+    if (!dutyDayId) return []
+    return day.assignments.map((assignment, index) => ({
+      duty_day_id: dutyDayId,
+      teacher_id: assignment.teacherId,
+      session_start: assignment.start,
+      session_end: assignment.end,
+      room: assignment.room,
+      sort_order: index,
+      updated_at: now,
+    }))
+  })
+  if (assignmentRows.length === 0) return
+  const { error: insErr } = await supabase
+    .from("homework_tutoring_duty_assignments")
+    .insert(assignmentRows)
+  if (insErr) throw insErr
 }
 
 /**
@@ -787,22 +878,7 @@ export async function publishHomeworkRosterMonth(opts: {
     yearMonth: opts.yearMonth,
   })
 
-  for (const day of opts.dutyDays) {
-    const iso = mdKeyToIso(opts.yearMonth, day.date)
-    if (!iso) continue
-    const dutyDayId = await upsertHomeworkDutyDay({
-      rosterMonthId: roster.id,
-      date: iso,
-      start: day.start,
-      end: day.end,
-      holidayLabel: day.holiday ?? null,
-      secondaryRoom: day.secondaryRoom,
-      primaryRoom: day.primaryRoom,
-      secondaryTeacherId: day.secondaryTeacherId ?? null,
-      primaryTeacherId: day.primaryTeacherId ?? null,
-    })
-    await replaceHomeworkDutyAssignments(dutyDayId, day.holiday ? [] : day.assignments)
-  }
+  await replaceHomeworkRosterDutyDays(roster.id, opts.yearMonth, opts.dutyDays)
 
   await setHomeworkRosterMonthStatus(roster.id, "已編更")
   const scheduleCount = await syncHomeworkOccupancySchedules({

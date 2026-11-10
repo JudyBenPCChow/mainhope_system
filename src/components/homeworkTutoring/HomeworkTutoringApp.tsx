@@ -77,10 +77,15 @@ import {
   clearHomeworkOccupancySchedules,
   setHomeworkRosterMonthStatus,
   upsertHomeworkAvailability,
+  upsertHomeworkAvailabilityBatch,
   type HomeworkClassRef,
   type HomeworkEnrollmentRow,
   type PublishHomeworkDutyDayInput,
 } from "@/services/homeworkTutoringQueries"
+import {
+  homeworkAvailabilityPersistKey,
+  homeworkAvailabilityRowsToPersist,
+} from "@/lib/homeworkAvailabilityPersist"
 import { applyHomeworkRosterStatusChange } from "@/lib/homeworkTutoringRosterPersist"
 import {
   getHomeworkTutoringDataCache,
@@ -300,6 +305,15 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   availRef.current = avail
   const submitStatusRef = useRef(submitStatus)
   submitStatusRef.current = submitStatus
+  const savedAvailKeyRef = useRef(
+    hydrateHw && initialHwCache!.loadedMonth
+      ? homeworkAvailabilityPersistKey(
+          initialHwCache!.avail,
+          initialHwCache!.submitStatus,
+          initialHwCache!.loadedMonth
+        )
+      : ""
+  )
   const monthRosterStatusRef = useRef(monthRosterStatus)
   monthRosterStatusRef.current = monthRosterStatus
   const loadedMonthRef = useRef(hydrateHw ? initialHwCache!.loadedMonth : "")
@@ -364,6 +378,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       availRef.current = nextAvail
       setSubmitStatus(nextStatus)
       submitStatusRef.current = nextStatus
+      savedAvailKeyRef.current = homeworkAvailabilityPersistKey(nextAvail, nextStatus, yearMonth)
       const days = mapDutyDays(roster.days)
       applyRosterDays(yearMonth, days, roster.id, roster.status)
       loadedMonthRef.current = yearMonth
@@ -726,17 +741,20 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
 
   const persistDraftAvailSnapshot = useCallback(
     async (entries: AllTeacherAvailability, statuses: AllTeacherSubmitStatus, targetMonth: string) => {
-      for (const [teacherId, status] of Object.entries(statuses)) {
-        if (status !== "草稿" && status !== "已提交") continue
-        try {
-          await persistTeacherAvail(teacherId, status, entries, targetMonth)
-        } catch (e) {
-          reportUserFacingError(e, { source: "HomeworkTutoringApp.persistTeacherAvail" })
-          throw e
-        }
+      const key = homeworkAvailabilityPersistKey(entries, statuses, targetMonth)
+      if (key === savedAvailKeyRef.current) return
+      try {
+        await upsertHomeworkAvailabilityBatch({
+          targetMonth,
+          rows: homeworkAvailabilityRowsToPersist(entries, statuses),
+        })
+        savedAvailKeyRef.current = key
+      } catch (e) {
+        reportUserFacingError(e, { source: "HomeworkTutoringApp.persistTeacherAvail" })
+        throw e
       }
     },
-    [persistTeacherAvail]
+    []
   )
 
   const handlePublishCompanion = useCallback(
