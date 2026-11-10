@@ -800,7 +800,7 @@ export async function insertTrialSession(row: {
  payment_id?: string | null
  /** 計人頭：true／false；免費須手選，不可省略 */
  counts_toward_headcount: boolean
-}): Promise<void> {
+}): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
 
  const today = localYmd()
@@ -923,18 +923,23 @@ export async function insertTrialSession(row: {
   }
  }
 
+ const createdIds = new Map<string, string>()
  for (const scheduleId of scheduleIds) {
-  const { error } = await supabase.from("trial_sessions").insert({
-   student_id: row.student_id,
-   schedule_id: scheduleId,
-   class_id: row.class_id,
-   trial_date: row.trial_date,
-   trial_type: row.trial_type,
-   status: row.status ?? "已預約",
-   remarks: row.remarks ?? null,
-   payment_id: row.payment_id ?? null,
-   counts_toward_headcount: row.counts_toward_headcount,
-  })
+  const { data, error } = await supabase
+   .from("trial_sessions")
+   .insert({
+    student_id: row.student_id,
+    schedule_id: scheduleId,
+    class_id: row.class_id,
+    trial_date: row.trial_date,
+    trial_type: row.trial_type,
+    status: row.status ?? "已預約",
+    remarks: row.remarks ?? null,
+    payment_id: row.payment_id ?? null,
+    counts_toward_headcount: row.counts_toward_headcount,
+   })
+   .select("id")
+   .maybeSingle()
   if (error) {
    const code = (error as { code?: string }).code
    if (code === "23505") {
@@ -942,7 +947,10 @@ export async function insertTrialSession(row: {
    }
    throw error
   }
+  const id = data?.id != null ? String(data.id) : ""
+  if (id) createdIds.set(scheduleId, id)
  }
+ return createdIds.get(row.schedule_id) ?? [...createdIds.values()][0] ?? ""
 }
 
 /** 依每堂收費金額推斷試堂類型（列表篩選／標籤用） */
@@ -1700,8 +1708,8 @@ export async function convertTrialToEnrollment(params: {
   if (regErr) console.warn("[convertTrialToEnrollment] registration_status", regErr)
  }
 
- if (sideEffect?.headline.includes("到課宣告")) {
-  throw new WrittenSideEffectError("報讀已寫入，但到課宣告未能完成", {
+ if (sideEffect?.headline.includes("之後的堂未排好")) {
+  throw new WrittenSideEffectError(sideEffect.headline, {
    cause: sideEffect,
    detail: sideEffect.detailNote,
    enrollmentId,

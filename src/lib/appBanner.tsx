@@ -17,10 +17,8 @@ import { cn } from "@/lib/utils"
 
 export type BannerTone = "default" | "info" | "success" | "warning" | "error"
 
-/** 一般／成功通知自動關閉（毫秒） */
-export const BANNER_AUTO_DISMISS_MS = 2000
-/** 錯誤／警告需閱讀，停留較長（毫秒） */
-export const BANNER_ERROR_DISMISS_MS = 8000
+/** 沒有下一步、且不是警示或錯誤時，自動關閉（毫秒）。滑鼠停在該則上暫停。 */
+export const BANNER_AUTO_DISMISS_MS = 4000
 
 /**
  * Overlay z-index ladder（見 docs/meta/UI_DESIGN_INSTRUCTIONS.md §14）：
@@ -29,14 +27,11 @@ export const BANNER_ERROR_DISMISS_MS = 8000
  */
 export const APP_BANNER_Z_CLASS = "z-[280]"
 
-function dismissMsForTone(tone: BannerTone): number {
- if (tone === "error" || tone === "warning") return BANNER_ERROR_DISMISS_MS
- return BANNER_AUTO_DISMISS_MS
-}
-
-type BannerAction = {
+export type BannerAction = {
  pageLabel: string
  to: string
+ /** 按鈕全文。沒有則為「前往{pageLabel}頁面」。 */
+ label?: string
 }
 
 export type AppBannerInput = {
@@ -44,6 +39,15 @@ export type AppBannerInput = {
  title: string
  message?: string
  action?: BannerAction
+ actions?: BannerAction[]
+}
+
+/** 有下一步按鈕，或屬於警示／錯誤：留到按關閉或按按鈕。 */
+export function bannerPersists(input: AppBannerInput): boolean {
+ const tone = input.tone ?? "default"
+ if (tone === "error" || tone === "warning") return true
+ const actions = input.actions?.length ? input.actions : input.action ? [input.action] : []
+ return actions.length > 0
 }
 
 type BannerItem = AppBannerInput & {
@@ -56,6 +60,8 @@ type AppBannerContextValue = {
  pushBanner: (input: AppBannerInput) => void
  dismissBanner: (id: string) => void
  toggleExpand: (id: string) => void
+ pauseBannerTimer: (id: string) => void
+ resumeBannerTimer: (id: string) => void
 }
 
 const AppBannerContext = createContext<AppBannerContextValue | null>(null)
@@ -81,21 +87,51 @@ function nextBannerId(): string {
 
 export function AppBannerProvider({ children }: PropsWithChildren) {
  const [banners, setBanners] = useState<BannerItem[]>([])
- const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+ const timersRef = useRef<
+  Map<string, { remaining: number; startedAt: number; handle: ReturnType<typeof setTimeout> | null }>
+ >(new Map())
 
- const clearBannerTimer = useCallback((id: string) => {
-  const timer = timersRef.current.get(id)
-  if (!timer) return
-  clearTimeout(timer)
+ const dropBanner = useCallback((id: string) => {
+  const state = timersRef.current.get(id)
+  if (state?.handle) clearTimeout(state.handle)
   timersRef.current.delete(id)
+  setBanners((prev) => prev.filter((b) => b.id !== id))
  }, [])
 
- const dismissBanner = useCallback(
+ const armTimer = useCallback(
   (id: string) => {
-   clearBannerTimer(id)
-   setBanners((prev) => prev.filter((b) => b.id !== id))
+   const state = timersRef.current.get(id)
+   if (!state || state.handle) return
+   state.startedAt = Date.now()
+   state.handle = setTimeout(() => {
+    timersRef.current.delete(id)
+    setBanners((prev) => prev.filter((b) => b.id !== id))
+   }, state.remaining)
   },
-  [clearBannerTimer]
+  []
+ )
+
+ const dismissBanner = useCallback((id: string) => dropBanner(id), [dropBanner])
+
+ const pauseBannerTimer = useCallback((id: string) => {
+  const state = timersRef.current.get(id)
+  if (!state?.handle) return
+  state.remaining = Math.max(0, state.remaining - (Date.now() - state.startedAt))
+  clearTimeout(state.handle)
+  state.handle = null
+ }, [])
+
+ const resumeBannerTimer = useCallback(
+  (id: string) => {
+   const state = timersRef.current.get(id)
+   if (!state || state.handle) return
+   if (state.remaining <= 0) {
+    dropBanner(id)
+    return
+   }
+   armTimer(id)
+  },
+  [armTimer, dropBanner]
  )
 
  const pushBanner = useCallback(
@@ -103,13 +139,15 @@ export function AppBannerProvider({ children }: PropsWithChildren) {
    const id = nextBannerId()
    const tone = input.tone ?? "default"
    setBanners((prev) => [{ id, expanded: false, tone, ...input }, ...prev])
-   const timer = setTimeout(() => {
-    timersRef.current.delete(id)
-    setBanners((prev) => prev.filter((b) => b.id !== id))
-   }, dismissMsForTone(tone))
-   timersRef.current.set(id, timer)
+   if (bannerPersists({ ...input, tone })) return
+   timersRef.current.set(id, {
+    remaining: BANNER_AUTO_DISMISS_MS,
+    startedAt: Date.now(),
+    handle: null,
+   })
+   armTimer(id)
   },
-  []
+  [armTimer]
  )
 
  const toggleExpand = useCallback((id: string) => {
@@ -117,15 +155,18 @@ export function AppBannerProvider({ children }: PropsWithChildren) {
  }, [])
 
  useEffect(() => {
+  const timers = timersRef.current
   return () => {
-   for (const timer of timersRef.current.values()) clearTimeout(timer)
-   timersRef.current.clear()
+   for (const state of timers.values()) {
+    if (state.handle) clearTimeout(state.handle)
+   }
+   timers.clear()
   }
  }, [])
 
  const value = useMemo<AppBannerContextValue>(
-  () => ({ banners, pushBanner, dismissBanner, toggleExpand }),
-  [banners, dismissBanner, pushBanner, toggleExpand]
+  () => ({ banners, pushBanner, dismissBanner, toggleExpand, pauseBannerTimer, resumeBannerTimer }),
+  [banners, dismissBanner, pauseBannerTimer, pushBanner, resumeBannerTimer, toggleExpand]
  )
 
  return (
@@ -143,7 +184,7 @@ export function useAppBanner() {
 
 export function AppBannerViewport() {
  const navigate = useNavigate()
- const { banners, dismissBanner, toggleExpand } = useAppBanner()
+ const { banners, dismissBanner, toggleExpand, pauseBannerTimer, resumeBannerTimer } = useAppBanner()
 
  if (banners.length === 0 || typeof document === "undefined") return null
 
@@ -158,10 +199,12 @@ export function AppBannerViewport() {
    <div className="flex flex-col gap-2">
     {banners.map((b) => {
      const Icon = toneIcon(b.tone ?? "default")
-     const action = b.action
+     const actions = b.actions?.length ? b.actions : b.action ? [b.action] : []
      return (
       <article
        key={b.id}
+       onMouseEnter={() => pauseBannerTimer(b.id)}
+       onMouseLeave={() => resumeBannerTimer(b.id)}
        className={cn(
         "pointer-events-auto overflow-hidden rounded-xl shadow-lg ring-1 ring-black/5 animate-in slide-in-from-top-4 fade-in duration-300",
         toneClasses(b.tone ?? "default")
@@ -175,20 +218,25 @@ export function AppBannerViewport() {
           {b.expanded && b.message ? <p className="mt-1 text-sm/6 opacity-95">{b.message}</p> : null}
          </div>
         </button>
-        {action ? (
-          <Button
-           type="button"
-           size="sm"
-           variant="outline"
-           className="h-8 border-white/70 bg-transparent text-current hover:bg-white/15 hover:text-current"
-           onClick={(e) => {
-            e.stopPropagation()
-            navigate(action.to)
-            dismissBanner(b.id)
-           }}
-          >
-           {`前往${action.pageLabel}頁面`}
-          </Button>
+        {actions.length > 0 ? (
+          <div className="flex max-w-[16rem] shrink-0 flex-wrap justify-end gap-2">
+           {actions.map((action) => (
+            <Button
+             key={`${action.to}:${action.label ?? action.pageLabel}`}
+             type="button"
+             size="sm"
+             variant="outline"
+             className="h-8 border-white/70 bg-transparent text-current hover:bg-white/15 hover:text-current"
+             onClick={(e) => {
+              e.stopPropagation()
+              navigate(action.to)
+              dismissBanner(b.id)
+             }}
+            >
+             {action.label ?? `前往${action.pageLabel}頁面`}
+            </Button>
+           ))}
+          </div>
          ) : null}
         <button
          type="button"

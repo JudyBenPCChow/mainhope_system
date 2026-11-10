@@ -1516,8 +1516,8 @@ export function PaymentsPageView() {
    if (hasTrialLine) {
     pushBanner({
      tone: "info",
-     title: "待收款單已建立",
-     message: "試堂須確認收款後才會掛單並上點名紙。請到繳費紀錄將此單標記為已收款。",
+     title: "待收款單已建立，試堂尚未上點名紙",
+     message: "請到繳費紀錄把此單標為已收款。確認後才會出現在點名紙。",
     })
    }
    invalidatePaymentHistoryDataCache()

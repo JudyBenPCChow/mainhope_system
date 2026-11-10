@@ -140,7 +140,10 @@ export function MonthlyTuitionView() {
    })
    pushBanner({
     tone: "success",
-    title: paymentStatus === PAYMENT_STATUS.received ? "月費收款完成" : "月費帳單已建立",
+    title:
+     paymentStatus === PAYMENT_STATUS.received
+      ? "月費收款完成"
+      : "月費帳單已建立，請到收款登記確認",
     message: `${money(total)} · 單據 ${paymentId.slice(0, 8)}`,
    })
    setRemarks("")

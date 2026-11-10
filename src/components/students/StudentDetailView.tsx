@@ -38,6 +38,14 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips } from "@/components/students/studentsUi"
 import { formatStudentGrade, isSeniorStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
+import {
+ ENROLLMENT_PAY_MESSAGE,
+ HOMEWORK_PAY_MESSAGE,
+ enrollmentAddedTitle,
+ enrollmentLeavePayMessage,
+ homeworkDaysLabel,
+} from "@/lib/bannerEnrollmentCopy"
+import { classDisplayName, formatClassWhenLabel } from "@/lib/courseLabel"
 import { useAppConfirm } from "@/lib/appConfirm"
 import {
  confirmGraduateStudent,
@@ -892,10 +900,28 @@ export function StudentDetailView() {
   resetAddEnrollmentDialog()
   invalidateStudentsListDataCache()
   invalidateEnrollmentChangesDataCache()
+  const studentName = (student?.full_name ?? form.full_name ?? "").trim() || "學生"
+  const addedTitle = enrollmentAddedTitle({
+   studentName,
+   classLabel: isHomework
+    ? "功課輔導班"
+    : classDisplayName({ subject: picked?.subject, courseName: picked?.courseName }),
+   whenLabel: isHomework
+    ? homeworkDaysLabel(pickHwPlan)
+    : formatClassWhenLabel(picked?.dayOfWeek, picked?.timeSlot),
+   homework: isHomework,
+  })
+  const payAction = {
+   pageLabel: "收款登記",
+   to: paymentsReceiveHref({
+    studentId: sid,
+    enrollmentClassIds: [pickClass],
+   }),
+  }
   if (sideEffect) {
    const leaveNote =
     firstLeaveId && autoLeaveCount > 0
-     ? `已為 ${autoLeaveCount} 堂過去排程建立請假（待安排）。`
+     ? `已同步建立 ${autoLeaveCount} 堂請假。`
      : ""
    reportUserFacingError(sideEffect, { source: "StudentDetailView.addEnrollment" })
    pushBanner({
@@ -906,41 +932,16 @@ export function StudentDetailView() {
   } else if (firstLeaveId && sid) {
    pushBanner({
     tone: "success",
-    title: "已加入班別並自動請假",
-    message: `報讀已建立；已為 ${autoLeaveCount} 堂過去排程建立請假（待安排）。請安排補堂，並前往收款／出單確認學費。`,
-    action: {
-     pageLabel: "請假管理",
-     to: `/LeaveManagement?${new URLSearchParams({
-      studentId: sid,
-      record: firstLeaveId,
-     }).toString()}`,
-    },
+    title: addedTitle,
+    message: enrollmentLeavePayMessage(autoLeaveCount),
+    action: payAction,
    })
-   goExternal(
-    `/LeaveManagement?${new URLSearchParams({
-     studentId: sid,
-     record: firstLeaveId,
-    }).toString()}`
-   )
   } else {
    pushBanner({
     tone: "success",
-    title: "已加入班別",
-    message: isHomework
-     ? "功課輔導班報讀已建立。請於功輔「月費」頁產生應收後前往收款登記。"
-     : "報讀已建立。請前往收款／出單確認學費，已繳堂數才會增加。",
-    action: isHomework
-     ? {
-        pageLabel: "功輔月費",
-        to: "/HomeworkTutoring/Fees",
-       }
-     : {
-        pageLabel: "收款／出單",
-        to: paymentsReceiveHref({
-         studentId: sid,
-         enrollmentClassIds: [pickClass],
-        }),
-       },
+    title: addedTitle,
+    message: isHomework ? HOMEWORK_PAY_MESSAGE : ENROLLMENT_PAY_MESSAGE,
+    action: payAction,
    })
   }
   await reloadSubs()
@@ -995,7 +996,7 @@ export function StudentDetailView() {
    await reloadSubs()
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.withdrawEnrollment" })
-   pushBanner({ tone: "error", title: "退班失敗", message: e instanceof Error ? e.message : String(e) })
+   pushBanner({ tone: "error", title: "退讀失敗", message: e instanceof Error ? e.message : String(e) })
   } finally {
    setWithdrawSaving(false)
   }
@@ -1247,7 +1248,7 @@ export function StudentDetailView() {
      subject: e.subject,
      courseCode: e.courseCode,
      courseName: e.courseName,
-    })}」的報讀？會刪除該筆報讀及增退紀錄，並作廢該班到課宣告。已扣堂數不會退回。若本班已有出席，請改用退讀或轉時間。`,
+    })}」的報讀？會刪除該筆報讀及增退紀錄，並取消這生在這班已排的堂。已扣堂數不會退回。若本班已有出席，請改用退讀或轉時間。`,
     confirmText: "確認清除",
     tone: "destructive",
     confirmInput: {
@@ -1270,7 +1271,7 @@ export function StudentDetailView() {
     return
    }
    await purgeMistakenEnrollment({ enrollmentId: e.id, studentId: sid })
-   pushBanner({ tone: "success", title: "已清除手誤報讀" })
+   pushBanner({ tone: "success", title: `已清除${studentName}的手誤報讀` })
    await reloadSubs()
   } catch (err) {
    reportUserFacingError(err, { source: "StudentDetailView.purgeMistakenEnrollment" })
@@ -2666,7 +2667,7 @@ export function StudentDetailView() {
          <div className="space-y-3 text-sm">
           <p>
            確定讓 <strong>{student?.full_name ?? "此學生"}</strong> 退出以下班別？請選擇
-           <strong>從哪一堂起不上</strong>（含該堂）。會寫入增退紀錄並作廢該日起到課宣告。
+           <strong>從哪一堂起不上</strong>（含該堂）。會寫入增退紀錄，並取消該日起已排給這生的堂。
            若只是手誤選錯且尚無出席，請改用「手誤清除」。
           </p>
           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 font-medium">
