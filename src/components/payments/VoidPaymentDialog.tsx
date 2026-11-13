@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { voidRequiresSecondConfirmer } from "@/lib/entitlementAdjustment"
 import { money } from "@/components/payments/paymentsUi"
@@ -40,6 +41,7 @@ type Props = {
 export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Props) {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
+ const { role } = useAuth()
  const [reason, setReason] = useState("")
  const [password, setPassword] = useState("")
  const [secondEmail, setSecondEmail] = useState("")
@@ -48,9 +50,10 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
  const [saving, setSaving] = useState(false)
 
  const needsSecond = useMemo(
-  () => (target ? voidRequiresSecondConfirmer(target.createdAt) : false),
-  [target]
+  () => (target ? voidRequiresSecondConfirmer(target.createdAt, Date.now(), role) : false),
+  [target, role],
  )
+ const isAlien = role === "alien"
 
  useEffect(() => {
   if (!open) {
@@ -167,9 +170,13 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
        </Link>
        調已繳堂數；金額錯先作廢再重開。
       </p>
-      {needsSecond ? (
-       <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
-        此單開立已超過 30 分鐘，須另一位<strong>管理層或外星人</strong>輸入電郵與密碼作第二確認（不可同你本人）。
+      {isAlien ? (
+       <p className="text-xs text-muted-foreground">
+        外星人不論開單多久，輸入你的登入密碼與作廢原因即可作廢。
+       </p>
+      ) : needsSecond ? (
+       <p className="text-xs text-warning">
+        此單開立已超過 30 分鐘。前台行政須另一位管理層或外星人輸入電郵與密碼作第二確認（不可與你本人相同）。
        </p>
       ) : (
        <p className="text-xs text-muted-foreground">開立未滿 30 分鐘：只需你本人密碼即可作廢。</p>

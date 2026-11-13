@@ -52,7 +52,7 @@ const GUIDES: Array<{ key: GuideKey; title: string; body: string; action: string
  {
   key: "g2d",
   title: "G2d 金額／優惠錯（堂數啱）",
-  body: "作廢舊單＋重開正確單。超過 30 分鐘要第二人確認。請到繳費紀錄作廢。",
+  body: "作廢舊單＋重開正確單。外星人不論開單多久可自行作廢；前台行政超過 30 分鐘要第二人確認。請到繳費紀錄作廢。",
   action: "去繳費紀錄",
  },
  {

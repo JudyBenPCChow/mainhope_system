@@ -21,4 +21,11 @@ describe("voidRequiresSecondConfirmer", () => {
    voidRequiresSecondConfirmer("2026-08-10T03:29:00.000Z", now)
   ).toBe(true)
  })
+
+ it("lets an alien void alone regardless of age", () => {
+  const now = Date.parse("2026-08-10T04:00:00.000Z")
+  expect(voidRequiresSecondConfirmer(null, now, "alien")).toBe(false)
+  expect(voidRequiresSecondConfirmer("2026-08-01T00:00:00.000Z", now, "alien")).toBe(false)
+  expect(voidRequiresSecondConfirmer("2026-08-01T00:00:00.000Z", now, "admin")).toBe(true)
+ })
 })

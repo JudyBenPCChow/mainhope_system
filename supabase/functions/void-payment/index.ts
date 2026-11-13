@@ -14,14 +14,18 @@ type RequestBody = {
   paymentId?: unknown
   reason?: unknown
   password?: unknown
-  /** 開單超過 30 分鐘：第二確認人電郵（manager／alien，不可同操作者） */
+  /** 前台行政且開單超過 30 分鐘：第二確認人電郵（manager／alien，不可同操作者）。外星人不需要。 */
   secondConfirmerEmail?: unknown
   secondConfirmerPassword?: unknown
 }
 
 const VOID_SINGLE_OPERATOR_WINDOW_MS = 30 * 60 * 1000
 
-function voidRequiresSecondConfirmer(createdAt: string | null | undefined): boolean {
+function voidRequiresSecondConfirmer(
+  createdAt: string | null | undefined,
+  role: string,
+): boolean {
+  if (role === "alien") return false
   const raw = String(createdAt ?? "").trim()
   if (!raw) return true
   const t = Date.parse(raw)
@@ -267,12 +271,12 @@ Deno.serve(async (req) => {
 
   let secondConfirmerEmail: string | null = null
   let secondConfirmerName: string | null = null
-  if (voidRequiresSecondConfirmer(createdAt)) {
+  if (voidRequiresSecondConfirmer(createdAt, caller.userRole)) {
     if (!secondEmail || !secondPassword) {
       return jsonResponse(
         {
           error:
-            "此單開立已超過 30 分鐘，須由另一位管理層（manager）或外星人再輸入電郵與密碼確認。",
+            "此單開立已超過 30 分鐘。前台行政須由另一位管理層或外星人再輸入電郵與密碼確認；外星人可自行作廢。",
         },
         403
       )

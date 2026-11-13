@@ -21,13 +21,15 @@ export const ENTITLEMENT_ADJUSTMENT_REASON_LABELS: Record<
  manual_other: "其他（請寫明備註）",
 }
 
-/** 開單後幾多毫秒內可單人作廢（密碼＋原因） */
+/** 開單後幾多毫秒內，前台行政可單人作廢（密碼＋原因）。外星人不適用此時限。 */
 export const VOID_SINGLE_OPERATOR_WINDOW_MS = 30 * 60 * 1000
 
 export function voidRequiresSecondConfirmer(
  createdAtIso: string | null | undefined,
- nowMs = Date.now()
+ nowMs = Date.now(),
+ role?: string | null,
 ): boolean {
+ if (String(role ?? "").trim().toLowerCase() === "alien") return false
  const raw = String(createdAtIso ?? "").trim()
  if (!raw) return true
  const t = Date.parse(raw)
