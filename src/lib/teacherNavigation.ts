@@ -7,6 +7,7 @@ import {
  ClipboardCheck,
  ClipboardList,
  DoorOpen,
+ GraduationCap,
  Home,
  Inbox,
  LayoutGrid,
@@ -14,6 +15,8 @@ import {
  Settings,
  UserRound,
 } from "lucide-react"
+
+import { TEACHER_TRIAL_STUDENTS_PATH } from "@/lib/teacherTrialList"
 
 import { HW_PATH } from "@/lib/homeworkTutoringNav"
 import {
@@ -37,6 +40,13 @@ export const TEACHER_MAIN_NAV: NavEntryDef[] = [
   icon: CalendarRange,
  },
  { kind: "leaf", path: "/Classes", label: "我的班別", roles: ["teacher"], icon: BookOpen },
+ {
+  kind: "leaf",
+  path: TEACHER_TRIAL_STUDENTS_PATH,
+  label: "試堂學生",
+  roles: ["teacher"],
+  icon: GraduationCap,
+ },
  {
   kind: "group",
   id: "teacher-schedule",
@@ -77,6 +87,13 @@ export const TEACHER_HOMEWORK_TUTOR_ONLY_NAV: NavEntryDef[] = [
  { kind: "leaf", path: "/Home", label: "首頁", roles: ["teacher"], icon: Home },
  { kind: "leaf", path: HW_PATH.submit, label: "功輔報更", roles: ["teacher"], icon: ClipboardList },
  { kind: "leaf", path: HW_PATH.myDuty, label: "我的當值", roles: ["teacher"], icon: CalendarCheck },
+ {
+  kind: "leaf",
+  path: TEACHER_TRIAL_STUDENTS_PATH,
+  label: "試堂學生",
+  roles: ["teacher"],
+  icon: GraduationCap,
+ },
  { kind: "leaf", path: "/AllFeatures", label: "所有功能", roles: ["teacher"], icon: LayoutGrid },
 ]
 
@@ -112,6 +129,12 @@ export const TEACHER_ALL_FEATURES_NAV: NavEntryDef[] = [
   icon: BookOpen,
   children: [
    { path: "/Classes", label: "我的班別", roles: ["teacher"], icon: BookOpen },
+   {
+    path: TEACHER_TRIAL_STUDENTS_PATH,
+    label: "試堂學生",
+    roles: ["teacher"],
+    icon: GraduationCap,
+   },
    { path: "/TeachingRecords", label: "教學紀錄", roles: ["teacher"], icon: NotebookPen },
    { path: "/PrivateTutoring", label: "我的私人課程", roles: ["teacher"], icon: UserRound },
   ],
@@ -165,6 +188,20 @@ export const TEACHER_HOMEWORK_TUTOR_ONLY_ALL_FEATURES_NAV: NavEntryDef[] = [
   children: [
    { path: HW_PATH.submit, label: "功輔報更", roles: ["teacher"], icon: ClipboardList },
    { path: HW_PATH.myDuty, label: "我的當值", roles: ["teacher"], icon: CalendarCheck },
+  ],
+ },
+ {
+  kind: "group",
+  id: "teacher-hw-map-trials",
+  label: "試堂",
+  icon: GraduationCap,
+  children: [
+   {
+    path: TEACHER_TRIAL_STUDENTS_PATH,
+    label: "試堂學生",
+    roles: ["teacher"],
+    icon: GraduationCap,
+   },
   ],
  },
  {

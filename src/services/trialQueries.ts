@@ -30,7 +30,12 @@ import {
  type CourseMode,
  type EnrollmentFormValue,
 } from "@/lib/enrollmentPeriod"
+import { resolveCurrentAcademicYearLabel } from "@/lib/softArchiveWindow"
+import { resolveSemesterDateRange, type TeacherHomeSemesterRange } from "@/lib/teacherHomeScope"
+import { filterTeacherTrialsBySemester } from "@/lib/teacherTrialList"
 import { localYmd } from "@/services/scheduleQueries"
+import { fetchAcademicYearPeriods } from "@/services/enrollmentPeriodQueries"
+import { fetchAcademicYearsWithDates } from "@/services/teacherAvailabilityQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { fetchScheduleIdsThatHaveAttendance } from "@/services/attendanceQueries"
@@ -516,6 +521,162 @@ export async function fetchTrialsWithRelations(opts?: {
  return {
   rows: await attachAttendance(await fillTrialClassLabels(merged)),
   hiddenOlderCount: hiddenOlderCountFromParts(allClosed, inWindowCount, keptWithoutYear),
+ }
+}
+
+export type TeacherTrialRow = {
+ id: string
+ student_id: string
+ class_id: string
+ schedule_id: string
+ trial_date: string
+ trial_type: string
+ status: string
+ remarks: string | null
+ student_name: string | null
+ student_grade: string | null
+ student_registration: "已註冊" | "非注冊" | null
+ class_label: string
+ course_code_full: string | null
+ academic_year_id: string | null
+ schedule_teacher_id: string | null
+ schedule_teacher_name: string | null
+ sched_date: string | null
+ sched_start: string | null
+ sched_end: string | null
+ outcome: TrialOutcome
+ outcome_reason: string | null
+ outcome_note: string | null
+ outcome_at: string | null
+ roll_call_done: boolean
+ attendance_status: string | null
+ teacher_comment: string | null
+ teacher_comment_at: string | null
+ teacher_comment_by_name: string | null
+ teacher_comment_edited_at: string | null
+}
+
+const TEACHER_TRIAL_LIST_COLUMNS =
+ `id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, outcome, outcome_reason, outcome_note, outcome_at, ${TRIAL_COMMENT_COLUMNS}, students ( full_name, grade, registration_status ), classes!inner ( subject, class_kind, course_code_full, academic_year_id, teacher_id, courses ( course_name ) ), schedules ( scheduled_date, start_time, end_time, teacher_id, teachers!schedules_teacher_id_fkey ( full_name ) )`
+
+function embedRecord(raw: unknown): Record<string, unknown> | null {
+ if (raw == null) return null
+ if (Array.isArray(raw)) {
+  const first = raw[0]
+  return first != null && typeof first === "object" ? (first as Record<string, unknown>) : null
+ }
+ return typeof raw === "object" ? (raw as Record<string, unknown>) : null
+}
+
+function mapTeacherTrialRow(row: Record<string, unknown>): TeacherTrialRow {
+ const st = embedRecord(row.students)
+ const cls = embedRecord(row.classes)
+ const sc = embedRecord(row.schedules)
+ const scheduleTeacher = embedRecord(sc?.teachers)
+ const commentAuthor = embedRecord(row.comment_author)
+ const sub = cls?.subject != null ? String(cls.subject) : "—"
+ const code = cls?.course_code_full != null ? String(cls.course_code_full) : null
+ const course = embedRecord(cls?.courses)
+ const courseName = course?.course_name != null ? String(course.course_name) : null
+ const registrationRaw = st?.registration_status != null ? String(st.registration_status) : ""
+ return {
+  id: String(row.id),
+  student_id: String(row.student_id ?? ""),
+  class_id: String(row.class_id ?? ""),
+  schedule_id: String(row.schedule_id ?? ""),
+  trial_date: String(row.trial_date ?? "").slice(0, 10),
+  trial_type: String(row.trial_type ?? ""),
+  status: String(row.status ?? ""),
+  remarks: row.remarks != null ? String(row.remarks) : null,
+  student_name: st?.full_name != null ? String(st.full_name) : null,
+  student_grade: st?.grade != null ? String(st.grade) : null,
+  student_registration: st
+   ? registrationRaw.includes("非注冊")
+    ? "非注冊"
+    : "已註冊"
+   : null,
+  class_label: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+  course_code_full: code,
+  academic_year_id: cls?.academic_year_id != null ? String(cls.academic_year_id) : null,
+  schedule_teacher_id: sc?.teacher_id != null ? String(sc.teacher_id) : null,
+  schedule_teacher_name: scheduleTeacher?.full_name != null ? String(scheduleTeacher.full_name) : null,
+  sched_date: sc?.scheduled_date != null ? String(sc.scheduled_date).slice(0, 10) : null,
+  sched_start: sc?.start_time != null ? String(sc.start_time) : null,
+  sched_end: sc?.end_time != null ? String(sc.end_time) : null,
+  outcome: normalizeTrialOutcome(row.outcome != null ? String(row.outcome) : "open"),
+  outcome_reason: row.outcome_reason != null ? String(row.outcome_reason) : null,
+  outcome_note: row.outcome_note != null ? String(row.outcome_note) : null,
+  outcome_at: row.outcome_at != null ? String(row.outcome_at) : null,
+  roll_call_done: false,
+  attendance_status: null,
+  teacher_comment: row.teacher_comment != null ? String(row.teacher_comment) : null,
+  teacher_comment_at: row.teacher_comment_at != null ? String(row.teacher_comment_at) : null,
+  teacher_comment_by_name:
+   commentAuthor?.full_name != null ? String(commentAuthor.full_name) : null,
+  teacher_comment_edited_at:
+   row.teacher_comment_edited_at != null ? String(row.teacher_comment_edited_at) : null,
+ }
+}
+
+async function attachTeacherTrialAttendance(rows: TeacherTrialRow[]): Promise<TeacherTrialRow[]> {
+ if (rows.length === 0) return rows
+ const scheduleIds = [...new Set(rows.map((r) => r.schedule_id).filter(Boolean))]
+ let attended = new Set<string>()
+ let statusByPair = new Map<string, string>()
+ try {
+  attended = await fetchScheduleIdsThatHaveAttendance(scheduleIds)
+  statusByPair = await fetchAttendanceStatusByStudentSchedule(rows)
+ } catch (error) {
+  console.warn("[fetchTrialsForTeacher] attendance", error)
+ }
+ return rows.map((r) => ({
+  ...r,
+  roll_call_done: attended.has(r.schedule_id),
+  attendance_status: statusByPair.get(`${r.schedule_id}\t${r.student_id}`) ?? null,
+ }))
+}
+
+export type TeacherTrialSemester = TeacherHomeSemesterRange & {
+ /** 含今天的期數名稱，例如上學期。對不上期數時為 null。 */
+ label: string | null
+}
+
+async function resolveTeacherTrialSemester(asOfYmd: string): Promise<TeacherTrialSemester | null> {
+ const years = await fetchAcademicYearsWithDates()
+ const yearLabel = resolveCurrentAcademicYearLabel(years, asOfYmd)
+ const currentYear = years.find((year) => year.label.trim() === (yearLabel ?? ""))
+ const periods = currentYear ? await fetchAcademicYearPeriods(currentYear.id) : []
+ const range = resolveSemesterDateRange({ asOfYmd, years, periods })
+ if (!range) return null
+ const period = periods.find((item) => asOfYmd >= item.startDate && asOfYmd <= item.endDate)
+ return { ...range, label: period?.label?.trim() || null }
+}
+
+/**
+ * 老師試堂學生。只查班別任教老師為本人、且試堂日在當下學期的列。不嵌收款。
+ */
+export async function fetchTrialsForTeacher(
+ teacherId: string
+): Promise<{ rows: TeacherTrialRow[]; semester: TeacherTrialSemester | null }> {
+ if (!supabase || !teacherId) return { rows: [], semester: null }
+ const asOfYmd = localYmd()
+ const semester = await resolveTeacherTrialSemester(asOfYmd)
+ if (!semester) return { rows: [], semester: null }
+ const { data, error } = await supabase
+  .from("trial_sessions")
+  .select(TEACHER_TRIAL_LIST_COLUMNS)
+  .eq("classes.teacher_id", teacherId)
+  .gte("trial_date", semester.startYmd)
+  .lte("trial_date", semester.endYmd)
+  .order("trial_date", { ascending: false })
+  .order("created_at", { ascending: false })
+ if (error) throw error
+ const mapped = await attachTeacherTrialAttendance(
+  ((data ?? []) as Record<string, unknown>[]).map(mapTeacherTrialRow)
+ )
+ return {
+  rows: filterTeacherTrialsBySemester(mapped, semester),
+  semester,
  }
 }
 

@@ -25,6 +25,7 @@ describe("老師側欄 IA", () => {
    "點名",
    "時間表",
    "我的班別",
+   "試堂學生",
    "排程",
    "教學與資源",
    "功課輔導",
@@ -40,16 +41,16 @@ describe("老師側欄 IA", () => {
     homeworkTutoringNavVisible: false,
     homeworkTutorOnly: false,
    }).map((entry) => entry.label)
-  ).toEqual(["首頁", "點名", "時間表", "我的班別", "排程", "教學與資源", "所有功能"])
+  ).toEqual(["首頁", "點名", "時間表", "我的班別", "試堂學生", "排程", "教學與資源", "所有功能"])
  })
 
- it("純功輔導師只保留 4 列", () => {
+ it("純功輔導師保留功輔入口與試堂學生", () => {
   expect(
    resolveTeacherMainNav({
     homeworkTutoringNavVisible: true,
     homeworkTutorOnly: true,
    }).map((entry) => entry.label)
-  ).toEqual(["首頁", "功輔報更", "我的當值", "所有功能"])
+  ).toEqual(["首頁", "功輔報更", "我的當值", "試堂學生", "所有功能"])
  })
 
  it("教學與資源／功輔群組次序正確", () => {
@@ -65,6 +66,9 @@ describe("老師側欄 IA", () => {
    "預約空房",
    "出席紀錄",
   ])
+  expect(TEACHER_MAIN_NAV.find((e) => e.kind === "leaf" && e.path === "/TeacherTrialStudents")?.label).toBe(
+   "試堂學生"
+  )
   expect(homework?.kind === "group" ? homework.children.map((c) => c.path) : []).toEqual([
    HW_PATH.submit,
    HW_PATH.myDuty,
@@ -99,6 +103,12 @@ describe("老師側欄 IA", () => {
    })
   ).toBe("我的私人課程")
   expect(resolveMobilePageTitle(HW_PATH.submit, "teacher")).toBe("功輔報更")
+  expect(
+   resolveTeacherPageTitle("/TeacherTrialStudents", {
+    homeworkTutoringNavVisible: true,
+    homeworkTutorOnly: false,
+   })
+  ).toBe("試堂學生")
  })
 })
 

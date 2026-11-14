@@ -155,6 +155,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    { path: "/Classes/New", label: "新增班別", roles: ["admin", "manager", "alien"], icon: Plus },
    { path: "/AdminOps", label: "班務助手", roles: ["admin"], icon: MessageSquare },
    { path: "/Classes", label: "我的班別", roles: ["teacher"], icon: BookOpen },
+   { path: "/TeacherTrialStudents", label: "試堂學生", roles: ["teacher"], icon: GraduationCap },
    { path: "/Teachers", label: "老師管理", roles: ["admin", "manager", "alien"], icon: UserRound },
    { path: "/TeacherAvailability", label: "老師檔期規劃", roles: ["admin", "manager", "alien"], icon: CalendarClock },
    { path: "/Courses", label: "課程管理", roles: ["alien"], icon: BookOpen },
@@ -327,6 +328,7 @@ const HOMEWORK_TUTOR_ONLY_PATH_PREFIXES = [
  "/AllFeatures",
  "/Inbox",
  "/HomeworkTutoring",
+ "/TeacherTrialStudents",
  "/TeacherProfile",
  "/Settings",
 ] as const

@@ -60,6 +60,7 @@ import TeacherTimetable from "@/pages/TeacherTimetable"
 import TeachingRecords from "@/pages/TeachingRecords"
 import TeacherLeaveWizard from "@/pages/TeacherLeaveWizard"
 import TomorrowReminders from "@/pages/TomorrowReminders"
+import TeacherTrialStudents from "@/pages/TeacherTrialStudents"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
@@ -383,6 +384,10 @@ export default function App() {
      <Route
       path="/TrialSessions"
       element={withCapabilities(["students.enroll"], <TrialSessions />)}
+     />
+     <Route
+      path="/TeacherTrialStudents"
+      element={withCapabilities(["students.read"], <TeacherTrialStudents />)}
      />
      <Route
       path="/ScriptLibrary"
