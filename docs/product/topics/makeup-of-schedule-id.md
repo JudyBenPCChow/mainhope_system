@@ -6,7 +6,7 @@
 | 優先 | 中 |
 | 範圍 | 將「此加堂補回哪一堂取消堂」從 `schedules.remarks` 字串，改為 `schedules.makeup_of_schedule_id` 外鍵；過渡雙寫／雙讀；排程備註改為人手輸入 |
 | 不含 | 廢除補回關係；清除 `26SM` 歷史 `remarks`；分批補回產品（M14／M16／M18）本身；學生請假 `leave_makeup_records.makeup_schedule_id`；改點名入場；非常規排程 3.1／3.2 |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 等待中 |
 | 立案 | 2026-10-20：全專案檢查發現排程備註整欄覆寫可抹掉 `makeup_of=`；產品傾向正規外鍵 |
 | 母題 | [`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md) §5.8（標記留低）；[`nonstandard-scheduling.md`](./nonstandard-scheduling.md)；[`makeup-special-cases.md`](./makeup-special-cases.md) M05／X07／Y13 |
 | 政策 | [`ATTENDANCE_BILLING.md`](../../policies/attendance/ATTENDANCE_BILLING.md)（現文仍寫備註標記，落地後須改） |

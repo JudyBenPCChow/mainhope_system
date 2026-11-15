@@ -2,11 +2,11 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress` |
+| 狀態 | `in_progress`（後台 PR #262 已合入；Portal 頁已有；驗收與文件波次 4 未關） |
 | 優先 | 中 |
 | 範圍 | 功輔導師在系統填寫各生當日情況；常設指示；持續欠項／默測；相片附件；家長於家長 Portal 唯讀；Schema／RLS／Storage；後台填寫 UI；Portal 列表頁 |
 | 不含 | **匯入 Notion 歷史**；專科式點名紙／扣堂／補堂；練習資源庫遷移；計糧；改 `makeup_of=`；冷儲雙雲／自動刪檔排程（另題）；另訂第三方 Storage |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 母題 | [`homework-tutoring.md`](./homework-tutoring.md)（產品已關帳；本題另開） |
 | Portal | 前端在 `mainhope_portal`（見該 repo [`docs/BACKLOG.md`](../../../../mainhope_portal/docs/BACKLOG.md)） |
 | 參考 | Notion 舊形式（每位學生一頁＋按日範本）；上線後停用 |
@@ -125,7 +125,7 @@
 2. Storage bucket `homework-day-log-attachments`＋RLS。
 3. 職員＝`is_mgmt_staff` 或 `homework_tutoring_nav`；財務無；刪除僅 `is_mgmt_staff`；Portal SELECT 不含職員備註表。
 
-### 波次 2 — 後台填寫 UI — **本 PR 進行中（漸進流程已對齊）**
+### 波次 2 — 後台填寫 UI — **已合入** PR #262
 
 1. 「功課紀錄」→ Tab **今日｜全部學生**：名冊「到／離」即建檔／記離開；詳情可多次「更新紀錄」＋即時拍照。
 2. 狀態：未建檔／進行中／已離開；日結未齊提示；非一次填完才存。
@@ -133,7 +133,7 @@
 4. 設定頁文案已改：每日進度改由系統。
 5. Overview／監督首屏：迷你進度條。
 
-### 波次 3 — 家長 Portal（`mainhope_portal`）— **進行中（同波）**
+### 波次 3 — 家長 Portal（`mainhope_portal`）— **頁已有**（`/homework-logs`）；驗收未關
 
 1. 新頁「功輔紀錄」`/homework-logs`；底部導覽「功輔」；與「出席」文案分開。
 2. 只列該生、上線後有列的日子；空狀態說明「老師填寫後會顯示」。

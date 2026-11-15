@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（行政／老師**高頻波次 1–3 已落**；營運總覽手機已併出；**2026-08-29** 外星人卡片／老師 P3／FilterSheet／底欄 Inbox／觸控 `h-10` 已落；餘次要 CRUD／約房） |
+| 狀態 | `in_progress`（高頻波次 1–3 已落；**2026-08-29** 外星人卡片／老師 P3／FilterSheet／底欄 Inbox／觸控 `h-10` 已落；**2026-10-15** 主區寬度／頂欄首頁已修；餘次要 CRUD／約房／行政底欄學生與收款捷徑） |
 | 優先 | 高 → 實務上次優先（高頻夠用後；跟 Mgmt／外星人頁） |
 | 範圍 | 行政 `admin`／老師 `teacher`（外星人專屬頁可後做） |
 | 不含 | 家長 Portal、學生端登入殼；**`/MgmtDashboard` 手機簡化版已併入** [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) |

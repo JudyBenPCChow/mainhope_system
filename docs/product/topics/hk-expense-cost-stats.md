@@ -6,7 +6,7 @@
 | 優先 | 中 |
 | 範圍 | HK 管理分析用成本帳（**2026-07 起**）；計糧結算過帳；預留將來純利組合 |
 | 不含 | 本期純利頁、CN、OCR、報銷、複式、間接攤分、繼續用 Excel／Notion 日常入帳、**2026-06 及之前月份分析** |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 路由 | `/ExpenseJournal`、`/ExpenseJournalRecords`（日記帳；admin／manager／alien）；`/HkExpenses` 成本分析（manager／alien） |
 
 ## 目標（一句）

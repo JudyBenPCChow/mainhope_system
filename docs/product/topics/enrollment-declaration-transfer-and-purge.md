@@ -11,8 +11,7 @@
 | 上一份 | [覆核稿](../../meta/handoffs/2026-10-07-purge-enrollment-declaration-review.md)（討論紀錄；本檔為收斂） |
 | 專家覆核 | [審查](../../meta/handoffs/2026-10-07-enrollment-declaration-expert-review.md) · [回覆](../../meta/handoffs/2026-10-07-enrollment-declaration-expert-review-response.md) |
 | 相關 | [轉時間](./transfer-class-time.md)、[生命週期孤兒](./lifecycle-orphans.md) O4、[學費追收](./tuition-chase-list.md)、[權益池 v3](./entitlement-pool-per-student-v3.md)、[非常規排程](./nonstandard-scheduling.md)、[補堂特殊個案](./makeup-special-cases.md)、[2627 營運指引](../../year/2627/ops-guide.md) §5.4 |
-
-索引一句待合入 `main` 後才寫入 [`BACKLOG.md`](../BACKLOG.md)。Feature 分支不改該表。
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 
 
 ## 一句

@@ -2,10 +2,12 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | 已套用 production schema；畫面須隨此次部署；未重算 22 口 |
+| 狀態 | `in_progress`（已套用 production schema；畫面須隨此次部署；未重算 22 口） |
+| 優先 | 中 |
 | 日期 | 2026-11-16 |
 | 範圍 | 常規學年 `2627` 起的專科已繳堂數。暑期 `26SM` 不遷。功課輔導班不走這套結餘 |
 | 來源 | 11-15 審閱稿＋IT 專家覆核＋2026-11-16 日常／對抗性模擬；產品確認人手更正僅外星人（維持 M19） |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 相關 | [權益池 v3](./entitlement-pool-per-student-v3.md)、[單據／權益更正頁](./payment-entitlement-correction-ui.md)、[更正申請制（本輪不開工）](./entitlement-correction-approval.md)、[討論手記](../../meta/handoffs/2026-11-15-entitlement-balance-events.md)、[P0-1 M19](./p0-1-authorization-decisions.md) |
 
 畫面與營運用語稱「已繳堂數」。程式識別字維持英文。上線當日不把 22 口尚餘改成流水合計。

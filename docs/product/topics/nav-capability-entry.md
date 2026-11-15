@@ -6,7 +6,7 @@
 | 優先 | 中 |
 | 範圍 | 側欄、首頁、按鈕展示改跟 capability；定邊啲功能出日常入口 |
 | 不含 | RLS／寫入授權（已喺 P0-1／P0-2 關帳）；阿Po Edge 帳戶帽（技術債本期不做） |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 來源 | 2026-08-15 決策 IA1；自 [`tech-debt-hardening.md`](./tech-debt-hardening.md) 拆出（2026-08-20） |
 | 相關 | [`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)、[`navStructure.ts`](../../../src/lib/navStructure.ts) |
 
