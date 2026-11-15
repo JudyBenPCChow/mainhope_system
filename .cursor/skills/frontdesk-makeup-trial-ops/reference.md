@@ -74,24 +74,15 @@ insert into schedules (
 
 `現金`｜`轉數快`｜`信用卡`｜`支票`｜`PayMe`｜`八達通`｜`易辦事`｜`銀聯`｜`銀行轉帳`｜`內地支付寶`｜`香港支付寶`｜`微信支付`｜`其他`
 
-## 試堂確認收款抬池
+## 試堂確認收款入帳
 
-```text
-student_entitlement_pools:
-  course_group = trial
-  namespace_key = class:{class_id}
-  source_enrollment_id = null
-  package_type = regular_full
-  initial_lessons / remaining_lessons += lesson_count
+禁止直改 `remaining_lessons`／`initial_lessons`。待收款單呼叫：
 
-entitlement_consumption_events:
-  reason = entitlement_top_up
-  delta_lessons = +lesson_count
-  payment_detail_id = <detail>
-  schedule_id / attendance_detail_id / declaration_id = null
+```sql
+select public.mark_payment_received_command('<payment_id>'::uuid, '<付款方式>');
 ```
 
-冪等：同一 `payment_detail_id`＋`reason=entitlement_top_up` 已存在則跳過。
+函式會鑄試堂池（`course_group=trial`，`namespace_key=class:{class_id}`，`source_enrollment_id` 空）並插入 `entitlement_top_up`。同一 `payment_detail_id` 已有 top_up 則不加第二次。
 
 ## 試堂改期（已取消列）
 

@@ -13,7 +13,10 @@ import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { supabase } from "@/lib/supabaseClient"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
-import { fetchActiveDeclarationsForSchedules } from "@/services/entitlementQueries"
+import {
+ applyEntitlementConsumptionDelta,
+ fetchActiveDeclarationsForSchedules,
+} from "@/services/entitlementQueries"
 import { logMgmtAuditActionOrThrow } from "@/services/mgmtGodViewQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 
@@ -457,6 +460,18 @@ export async function deleteAttendanceHitsWithAuditOrThrow(
    throw new AttendanceOptimisticLockError(
     `出席列已變更（${hit.studentName ?? hit.studentId} · ${hit.attendanceDate}），請重新掃描確認`
    )
+  }
+
+  if (hit.scheduleId) {
+   await applyEntitlementConsumptionDelta({
+    studentId: hit.studentId,
+    scheduleId: hit.scheduleId,
+    classId: hit.classId,
+    attendanceDetailId: hit.id,
+    previousStatus: hit.status,
+    nextStatus: null,
+    forceUnbillable: true,
+   })
   }
 
   let q = supabase.from("attendance_details").delete().eq("id", hit.id).eq("status", hit.status)

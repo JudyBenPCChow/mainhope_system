@@ -31,6 +31,30 @@ describe("applyEntitlementConsumptionDelta", () => {
    p_previous_status: undefined,
    p_next_status: "現場",
    p_lesson_units: 1,
+   p_force_unbillable: false,
+  })
+ })
+
+ it("刪點名時送 p_force_unbillable", async () => {
+  const { applyEntitlementConsumptionDelta } = await import("./entitlementQueries")
+  await applyEntitlementConsumptionDelta({
+   studentId: "student-1",
+   scheduleId: "sched-1",
+   classId: "class-1",
+   attendanceDetailId: "att-1",
+   previousStatus: "現場",
+   nextStatus: null,
+   forceUnbillable: true,
+  })
+  expect(rpc).toHaveBeenCalledWith("apply_attendance_entitlement_delta", {
+   p_student_id: "student-1",
+   p_schedule_id: "sched-1",
+   p_class_id: "class-1",
+   p_attendance_detail_id: "att-1",
+   p_previous_status: "現場",
+   p_next_status: undefined,
+   p_lesson_units: 1,
+   p_force_unbillable: true,
   })
  })
 

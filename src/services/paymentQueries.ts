@@ -46,10 +46,6 @@ import {
  validateDiscountSelection,
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
-import {
- clawbackEntitlementsForPayment,
- topUpEntitlementsForPayment,
-} from "@/services/entitlementQueries"
 
 const METHOD_OPTIONS = [
  "現金",
@@ -1022,7 +1018,10 @@ export async function insertPaymentRecord(params: {
     total_amount: totalAmount,
     subtotal_amount: subtotalAmount,
     payment_method: params.paymentMethod,
-    status: params.status,
+    status:
+     params.status === PAYMENT_STATUS.received
+      ? PAYMENT_STATUS.pendingReceive
+      : params.status,
     remarks: params.remarks?.trim() || null,
     receipt_number: receipt,
     payment_discount_id: filterTuitionDiscounts(orderedDiscounts)[0]?.id ?? null,
@@ -1098,10 +1097,7 @@ export async function insertPaymentRecord(params: {
  }
 
  if (params.status === PAYMENT_STATUS.received) {
-  await topUpEntitlementsForPayment({
-   paymentId,
-   studentId: params.studentId,
-  })
+  await markPaymentReceived(paymentId, { paymentMethod: params.paymentMethod })
  }
 
  return paymentId
@@ -1132,6 +1128,9 @@ export async function updatePaymentRecord(
  }
  if (patch.status === PAYMENT_STATUS.voided) {
   throw new Error("請使用「作廢」流程，不可直接將狀態改為作廢。")
+ }
+ if (patch.status === PAYMENT_STATUS.received) {
+  throw new Error("請使用確認收款流程，不可直接將狀態改為已收款。")
  }
  await noteExistingPaymentAcademicYearWrite(
   id,
@@ -1357,7 +1356,7 @@ export async function fetchRecentPaymentsForStudent(
  return fetchPaymentsList({ studentId, limit: n })
 }
 
-/** 將待繳／待收款改為已收款；收據編號一律由系統產生 */
+/** 將待繳／待收款改為已收款；收據編號與入帳堂數由資料庫同一交易完成 */
 export async function markPaymentReceived(id: string, opts?: { paymentMethod?: string }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: row, error: fetchErr } = await supabase
@@ -1379,31 +1378,14 @@ export async function markPaymentReceived(id: string, opts?: { paymentMethod?: s
   "markPaymentReceived",
   String((row as { payment_date?: string }).payment_date ?? "")
  )
- let updated = false
- for (let attempt = 0; attempt < RECEIPT_REF_ATTEMPTS; attempt++) {
-  const receipt = await allocateReceiptRef("RC")
-  const { error } = await supabase
-   .from("payments")
-   .update({
-    status: PAYMENT_STATUS.received,
-    receipt_number: receipt,
-    ...(opts?.paymentMethod ? { payment_method: opts.paymentMethod } : {}),
-    updated_at: new Date().toISOString(),
-   })
-   .eq("id", id)
-   .in("status", [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive])
-  if (!error) {
-   updated = true
-   break
-  }
-  if (isReceiptNumberUniqueViolation(error) && attempt < RECEIPT_REF_ATTEMPTS - 1) continue
-  throw error
- }
- if (!updated) throw new Error("無法產生唯一單據編號，請稍後再試")
+ const { error } = await supabase.rpc("mark_payment_received_command", {
+  p_payment_id: id,
+  p_payment_method: opts?.paymentMethod ?? undefined,
+ })
+ if (error) throw error
 
  const studentId = String((row as { student_id?: string }).student_id ?? "")
  if (studentId) {
-  await topUpEntitlementsForPayment({ paymentId: id, studentId })
   const { data: det, error: detErr } = await supabase
    .from("payment_details")
    .select("class_id, description")
@@ -1521,25 +1503,6 @@ export async function voidPaymentRecord(input: {
     ? payload.error.trim()
     : "作廢失敗，請稍後再試。"
   return { ok: false, message }
- }
-
- const studentId = String((row as { student_id?: string }).student_id ?? "")
- if (studentId && !payload.alreadyVoided) {
-  try {
-   await clawbackEntitlementsForPayment({
-    paymentId: input.paymentId,
-    studentId,
-   })
-  } catch (e) {
-   console.error("[voidPaymentRecord] entitlement clawback failed", e)
-   return {
-    ok: false,
-    message:
-     e instanceof Error
-      ? `單據已作廢，但已繳堂數收回失敗：${e.message}`
-      : "單據已作廢，但已繳堂數收回失敗。",
-   }
-  }
  }
 
  return {

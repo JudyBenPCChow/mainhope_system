@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import {
  ENTITLEMENT_ADJUSTMENT_REASON_CODES,
  ENTITLEMENT_ADJUSTMENT_REASON_LABELS,
@@ -86,7 +87,8 @@ function poolOptionLabel(p: EntitlementPoolSummary): string {
 }
 
 export function PaymentCorrectionView() {
- const { role } = useAuth()
+ const { role, profile } = useAuth()
+ const canCorrect = can(profile?.activeCapabilities, "entitlements.correct")
  const { pushBanner } = useAppBanner()
  const [students, setStudents] = useState<StudentRecord[]>([])
  const [studentQuery, setStudentQuery] = useState("")
@@ -296,10 +298,12 @@ export function PaymentCorrectionView() {
          <Button type="button" size="sm" variant="outline" asChild>
           <Link to="/PaymentHistory">{g.action}</Link>
          </Button>
-        ) : (
+        ) : canCorrect ? (
          <Button type="button" size="sm" variant="outline" onClick={() => onGuide(g.key)}>
           {g.action}
          </Button>
+        ) : (
+         <p className="text-xs text-muted-foreground">此項僅外星人可操作已繳堂數調動。</p>
         )}
        </div>
       </li>
@@ -307,6 +311,7 @@ export function PaymentCorrectionView() {
     </ul>
    </section>
 
+   {canCorrect ? (
    <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
     <h2 className="text-sm font-medium">2. 已繳堂數調動</h2>
     <div className="flex flex-wrap gap-2">
@@ -366,7 +371,7 @@ export function PaymentCorrectionView() {
     {mode === "adjust" ? (
      <label className="grid gap-1.5 text-sm sm:max-w-xs">
       <span className="font-medium">調動堂數（負＝減少）</span>
-      <Input type="number" step="0.5" value={delta} onChange={(e) => setDelta(e.target.value)} />
+      <Input type="number" step="1" value={delta} onChange={(e) => setDelta(e.target.value)} />
      </label>
     ) : (
      <div className="grid gap-3 sm:grid-cols-2">
@@ -404,8 +409,8 @@ export function PaymentCorrectionView() {
        <span className="font-medium">搬堂數</span>
        <Input
         type="number"
-        min={0.5}
-        step="0.5"
+        min={1}
+        step="1"
         value={transferLessons}
         onChange={(e) => setTransferLessons(e.target.value)}
        />
@@ -453,7 +458,18 @@ export function PaymentCorrectionView() {
       <Link to="/Payments">收款登記（重開）</Link>
      </Button>
     </div>
-   </section>
+    </section>
+   ) : (
+    <section className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+     <h2 className="text-sm font-medium">2. 已繳堂數調動</h2>
+     <p className="text-sm text-muted-foreground">
+      增減或搬堂僅外星人可提交。行政請作廢錯單後重開。
+     </p>
+     <Button type="button" variant="outline" asChild>
+      <Link to="/PaymentHistory">前往繳費紀錄</Link>
+     </Button>
+    </section>
+   )}
 
    <section className="space-y-3">
     <div className="flex items-center justify-between gap-2">
