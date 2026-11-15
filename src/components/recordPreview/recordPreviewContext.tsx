@@ -4,11 +4,20 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
 import { keepsHomeActionsOpen } from "@/lib/homeActionsRail"
+import { TEACHER_TRIAL_STUDENTS_PATH } from "@/lib/teacherTrialList"
 import type { LeadRow } from "@/services/leadQueries"
-import type { TrialManageRow } from "@/services/trialQueries"
+import type { TeacherTrialRow, TrialManageRow } from "@/services/trialQueries"
 import type { TuitionChasePeriodRef, TuitionChaseStudentRow } from "@/services/tuitionChaseQueries"
 
-export type RecordPreviewKind = "student" | "class" | "teacher" | "schedule" | "tuitionChase" | "lead" | "trial"
+export type RecordPreviewKind =
+ | "student"
+ | "class"
+ | "teacher"
+ | "schedule"
+ | "tuitionChase"
+ | "lead"
+ | "trial"
+ | "teacherTrial"
 
 export type RecordPreviewTarget =
  | { kind: "student" | "class" | "teacher" | "schedule"; id: string }
@@ -34,6 +43,12 @@ export type RecordPreviewTarget =
     id: string
     row: TrialManageRow
     onChanged: () => void | Promise<void>
+   }
+ | {
+    kind: "teacherTrial"
+    id: string
+    row: TeacherTrialRow
+    teacherId: string
    }
 
 type RecordPreviewContextValue = {
@@ -105,9 +120,11 @@ export function RecordPreviewProvider({ children }: { children: React.ReactNode 
 
 export function useRecordPreview() {
  const ctx = useContext(RecordPreviewContext)
+ const location = useLocation()
  const isMobile = useIsMobile()
  const { role } = useAuth()
- const enabled = Boolean(ctx) && !isMobile && (role === "admin" || role === "alien")
+ const teacherTrialRail = role === "teacher" && location.pathname === TEACHER_TRIAL_STUDENTS_PATH
+ const enabled = Boolean(ctx) && !isMobile && (role === "admin" || role === "alien" || teacherTrialRail)
 
  if (!ctx || !enabled) {
   return { ...disabledPreview, enabled: false as const }
@@ -117,7 +134,7 @@ export function useRecordPreview() {
 }
 
 function useOpenRecord(
- kind: Exclude<RecordPreviewKind, "tuitionChase" | "lead" | "trial">,
+ kind: Exclude<RecordPreviewKind, "tuitionChase" | "lead" | "trial" | "teacherTrial">,
  pathPrefix: string
 ) {
  const navigate = useNavigate()

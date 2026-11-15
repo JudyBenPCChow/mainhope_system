@@ -88,6 +88,7 @@ describe("功課輔導側欄", () => {
     expect(isHomeworkTutorOnlyAllowedPath("/HomeworkDayLogs/student-1")).toBe(false)
     expect(isHomeworkTutorOnlyAllowedPath("/Attendance")).toBe(false)
     expect(isHomeworkTutorOnlyAllowedPath("/Settings")).toBe(true)
+    expect(isHomeworkTutorOnlyAllowedPath("/TeacherTrialStudents")).toBe(true)
   })
 })
 

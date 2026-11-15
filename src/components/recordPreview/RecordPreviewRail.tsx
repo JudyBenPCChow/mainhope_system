@@ -3,6 +3,7 @@ import { X } from "lucide-react"
 
 import { LeadPreviewPanel } from "@/components/leads/LeadPreviewPanel"
 import { TuitionChasePreviewPanel } from "@/components/payments/TuitionChasePreviewPanel"
+import { TeacherTrialPreviewPanel } from "@/components/trials/TeacherTrialPreviewPanel"
 import { TrialPreviewPanel } from "@/components/trials/TrialPreviewPanel"
 import { ClassPreviewPanel } from "@/components/recordPreview/ClassPreviewPanel"
 import { SchedulePreviewPanel } from "@/components/recordPreview/SchedulePreviewPanel"
@@ -69,6 +70,8 @@ export function RecordPreviewRail({ empty }: Props) {
        />
       ) : preview.kind === "trial" ? (
        <TrialPreviewPanel row={preview.row} onChanged={preview.onChanged} />
+      ) : preview.kind === "teacherTrial" ? (
+       <TeacherTrialPreviewPanel row={preview.row} teacherId={preview.teacherId} />
       ) : (
        <div className="px-3 py-3 pr-10">
         <TeacherPreviewPanel teacherId={preview.id} />

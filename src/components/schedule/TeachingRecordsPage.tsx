@@ -132,7 +132,7 @@ export function TeachingRecordsPage() {
  }
 
  return (
-  <div className={cn(adminWorkspacePageClass, pagePadClass(role, "p-4 md:p-8"), role !== "admin" && "mx-auto max-w-5xl")}>
+  <div className={cn(adminWorkspacePageClass, pagePadClass(role, "p-4 md:p-8"))}>
    {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="工作域"
