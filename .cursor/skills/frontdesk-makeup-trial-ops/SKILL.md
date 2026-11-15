@@ -114,21 +114,20 @@ description: >-
 ### 收款狀態
 
 - 用戶未講已收／確認 → 出單用 **`待收款`**，`payment_method` 可空。  
-- 用戶說「確認收款」→ 改 **`已收款`**，填付款方式；並做試堂權益抬池（見下）。  
+- 用戶說「確認收款」→ 改 **`已收款`**，填付款方式；並做試堂入帳（見下）。  
 - 用戶說「還未收款」而誤標已收款 → **改回待收款**，清付款方式。
 
-### 確認收款後抬池（必做）
+### 確認收款後入帳（必做）
 
-對齊 `topUpEntitlementsForPayment`（試堂、無就讀報讀）：
+**禁止** `UPDATE student_entitlement_pools SET remaining_lessons = remaining_lessons + n`（欄位已拒絕直改）。
 
-1. 若該 `payment_detail_id` 尚無 `entitlement_consumption_events.reason=entitlement_top_up`：  
-2. 確保有池：`student_entitlement_pools`  
-   - `course_group='trial'`  
-   - `namespace_key='class:{class_id}'`  
-   - `source_enrollment_id=null`  
-   - `academic_year_id`＝該班學年  
-3. `initial_lessons`／`remaining_lessons` 各 **+lesson_count**  
-4. 寫 `entitlement_consumption_events`：`delta_lessons=+n`、`reason=entitlement_top_up`、`payment_detail_id` 已填
+出單用待收款；用戶說確認收款後呼叫：
+
+```sql
+select public.mark_payment_received_command('<payment_id>'::uuid, '轉數快');
+```
+
+同一交易內改已收款並插入 `entitlement_top_up`。已收款則只冪等補入帳。功課輔導班／`26SM` 明細會跳過專科帳本。不要先 `UPDATE payments.status` 再人手改尚餘。
 
 ### 試堂改期
 
@@ -212,7 +211,7 @@ description: >-
 
 1. 未作廢多於一張 → 進 **G**，不要再出第三張。
 2. 僅一張 **待收款** 半價：向用戶列該單；確認後作廢（G）再出原價單（`trial_type=原價試堂`；無半價優惠列；`total_amount=subtotal_amount=明細正價`）。把新單掛回 `trial_sessions.payment_id`。
-3. 僅一張 **已收款** 半價：先列；作廢有時間窗／第二人（G）。確認收款過的單作廢後須 clawback 試堂池。用戶未授權作廢已收款單 → 停。
+3. 僅一張 **已收款** 半價：先列；作廢有時間窗／第二人（G）。作廢交易內會退堂；不要另 PATCH 尚餘。用戶未授權作廢已收款單 → 停。
 4. 出新單前再次查未作廢試堂單；仍有就停。
 
 ### 新排試堂出單
@@ -240,4 +239,4 @@ description: >-
 
 Agent **不要**用 service_role 繞過密碼去改狀態。把診斷表交給用戶。外星人可在畫面自行作廢，不論開單多久。前台行政：待收款或開單 ≤30 分鐘，請在收款紀錄按作廢（密碼＋原因）；逾時須第二人，agent 不要代作。
 
-作廢成功後（用戶在畫面完成、或確認庫已作廢）：核對 `trial_sessions.payment_id` 不要掛著已作廢單；出正確新單後改掛。已收款作廢須有 clawback；沒有就標明缺口，不要當完成。
+作廢成功後（用戶在畫面完成、或確認庫已作廢）：核對 `trial_sessions.payment_id` 不要掛著已作廢單；出正確新單後改掛。作廢與退堂已同一交易；不要再人手改尚餘。

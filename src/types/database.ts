@@ -1150,6 +1150,7 @@ export type Database = {
           created_by: string | null
           declaration_id: string | null
           delta_lessons: number
+          ending_remaining: number | null
           id: string
           payment_detail_id: string | null
           pool_id: string
@@ -1163,6 +1164,7 @@ export type Database = {
           created_by?: string | null
           declaration_id?: string | null
           delta_lessons: number
+          ending_remaining?: number | null
           id?: string
           payment_detail_id?: string | null
           pool_id: string
@@ -1176,6 +1178,7 @@ export type Database = {
           created_by?: string | null
           declaration_id?: string | null
           delta_lessons?: number
+          ending_remaining?: number | null
           id?: string
           payment_detail_id?: string | null
           pool_id?: string
@@ -5548,6 +5551,7 @@ export type Database = {
         Args: {
           p_attendance_detail_id?: string
           p_class_id: string
+          p_force_unbillable?: boolean
           p_lesson_units?: number
           p_next_status?: string
           p_previous_status?: string
@@ -5555,6 +5559,16 @@ export type Database = {
           p_student_id: string
         }
         Returns: undefined
+      }
+      adjust_entitlement_pool: {
+        Args: {
+          p_delta_lessons: number
+          p_notes: string
+          p_pool_id: string
+          p_reason_code: string
+          p_related_payment_id?: string
+        }
+        Returns: Json
       }
       can_access_homework_day_logs: { Args: never; Returns: boolean }
       cancel_portal_enrollment_request: {
@@ -5798,6 +5812,10 @@ export type Database = {
           teacher_name: string
         }[]
       }
+      mark_payment_received_command: {
+        Args: { p_payment_id: string; p_payment_method?: string }
+        Returns: Json
+      }
       map_grade_code: { Args: { grades: string[] }; Returns: string }
       map_subject_code: { Args: { name_zh: string }; Returns: string }
       next_student_code_current_year: { Args: never; Returns: string }
@@ -6018,6 +6036,16 @@ export type Database = {
             Returns: Json
           }
       trial_invite_void: { Args: { p_token: string }; Returns: Json }
+      transfer_entitlement_lessons: {
+        Args: {
+          p_from_pool_id: string
+          p_lessons: number
+          p_notes: string
+          p_reason_code: string
+          p_to_pool_id: string
+        }
+        Returns: Json
+      }
       void_payment_command: {
         Args: { p_payment_id: string; p_reason: string }
         Returns: Json

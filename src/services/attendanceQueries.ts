@@ -851,15 +851,7 @@ export async function deleteAttendanceStatusForSchedule(
   existing != null ? String((existing as { status?: string }).status ?? "") : null
  const attendanceDetailId =
   existing != null ? String((existing as { id: string }).id) : null
- const { error } = await supabase
-  .from("attendance_details")
-  .delete()
-  .eq("student_id", studentId)
-  .eq("class_id", classId)
-  .eq("attendance_date", attendanceDate)
-  .eq("schedule_id", scheduleId)
- if (error) throw error
- if (previousStatus) {
+ if (previousStatus && attendanceDetailId) {
   try {
    await applyEntitlementConsumptionDelta({
     studentId,
@@ -868,14 +860,23 @@ export async function deleteAttendanceStatusForSchedule(
     attendanceDetailId,
     previousStatus,
     nextStatus: null,
+    forceUnbillable: true,
    })
   } catch (err) {
    throw new AttendanceSideEffectError(
-    entitlementSideEffectMessage("點名已刪除，但返還未能完成", err),
+    entitlementSideEffectMessage("點名未能刪除：返還已繳堂數失敗", err),
     err
    )
   }
  }
+ const { error } = await supabase
+  .from("attendance_details")
+  .delete()
+  .eq("student_id", studentId)
+  .eq("class_id", classId)
+  .eq("attendance_date", attendanceDate)
+  .eq("schedule_id", scheduleId)
+ if (error) throw error
 }
 
 /**

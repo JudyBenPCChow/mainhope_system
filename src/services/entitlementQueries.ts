@@ -98,10 +98,6 @@ function parseVoidReason(raw: unknown): DeclarationVoidReason | null {
  return null
 }
 
-function isTrialPaymentDetailDescription(description: string | null | undefined): boolean {
- return String(description ?? "").includes("試堂")
-}
-
 function mapPool(row: Record<string, unknown>): EntitlementPoolRow {
  const courseGroup = String(row.course_group ?? "group_specialist") as EntitlementCourseGroup
  const namespaceKey =
@@ -273,8 +269,8 @@ async function fetchPoolByNamespace(opts: {
 }
 
 /**
- * 混級專科：現行 namespace＝`class:<uuid>`，但舊鑄可能留下同年級碼池（S4）且宣告仍綁舊池。
- * 寫入路徑（鑄池／抬池）把同班年級碼池併入 class 池並重綁宣告／事件，避免再造雙池。
+ * 混級舊年級碼池：帳本閘之後不可把尚餘相加、不可改流水 pool_id、不可刪池。
+ * 只把宣告改掛到現行 class 池；舊口留低給之後重算。
  */
 async function mergeLegacyGradePoolsIntoClassScoped(opts: {
  studentId: string
@@ -304,59 +300,15 @@ async function mergeLegacyGradePoolsIntoClassScoped(opts: {
   )
  if (legacy.length === 0) return opts.preferredPool
 
- let target = opts.preferredPool
  const now = new Date().toISOString()
  for (const old of legacy) {
-  const nextInitial = target.initialLessons + old.initialLessons
-  const nextRemaining = target.remainingLessons + old.remainingLessons
-  const { error: updErr } = await supabase
-   .from("student_entitlement_pools")
-   .update({
-    initial_lessons: nextInitial,
-    remaining_lessons: nextRemaining,
-    updated_at: now,
-   })
-   .eq("id", target.id)
-  if (updErr) throw updErr
-
   const { error: declErr } = await supabase
    .from("attendance_declarations")
-   .update({ pool_id: target.id, updated_at: now })
+   .update({ pool_id: opts.preferredPool.id, updated_at: now })
    .eq("pool_id", old.id)
   if (declErr) throw declErr
-
-  const { error: evErr } = await supabase
-   .from("entitlement_consumption_events")
-   .update({ pool_id: target.id })
-   .eq("pool_id", old.id)
-  if (evErr) throw evErr
-
-  const { error: adjErr } = await supabase
-   .from("entitlement_pool_adjustments")
-   .update({ pool_id: target.id })
-   .eq("pool_id", old.id)
-  if (adjErr) throw adjErr
-
-  const { error: relErr } = await supabase
-   .from("entitlement_pool_adjustments")
-   .update({ related_pool_id: target.id })
-   .eq("related_pool_id", old.id)
-  if (relErr) throw relErr
-
-  const { error: delErr } = await supabase
-   .from("student_entitlement_pools")
-   .delete()
-   .eq("id", old.id)
-  if (delErr) throw delErr
-
-  target = {
-   ...target,
-   initialLessons: nextInitial,
-   remainingLessons: nextRemaining,
-   updatedAt: now,
-  }
  }
- return target
+ return opts.preferredPool
 }
 
 /**
@@ -1320,8 +1272,10 @@ export async function applyEntitlementConsumptionDelta(opts: {
  attendanceDetailId?: string | null
  previousStatus: string | null | undefined
  nextStatus: string | null | undefined
- /** 本堂單位；預設 1 */
+ /** 本堂單位；預設 1。資料庫忽略，一列排程＝1 堂。 */
  lessonUnits?: number
+ /** 刪點名前呼叫：目標淨額為 0，不看庫內出席狀態。 */
+ forceUnbillable?: boolean
 }): Promise<void> {
  if (!supabase) return
  const units = opts.lessonUnits != null && opts.lessonUnits > 0 ? opts.lessonUnits : 1
@@ -1333,6 +1287,7 @@ export async function applyEntitlementConsumptionDelta(opts: {
   p_previous_status: opts.previousStatus ?? undefined,
   p_next_status: opts.nextStatus ?? undefined,
   p_lesson_units: units,
+  p_force_unbillable: opts.forceUnbillable === true,
  })
  if (error) throw error
 }
@@ -1368,212 +1323,31 @@ export function normalizePeriodForPool(
 }
 
 /**
- * 確認收款後：學費明細 lesson_count → 對應班權益池 top_up（冪等）。
- * 罰款喺 payment_late_fee_items，唔經此路徑。無班／非 gated 學年／堂數≤0 → 略過。
+ * 已收款單據冪等補入帳。瀏覽器不再讀改寫尚餘。
+ * 待收款請走 `markPaymentReceived`（狀態＋入帳同一交易）。
  */
 export async function topUpEntitlementsForPayment(opts: {
  paymentId: string
  studentId: string
 }): Promise<{ toppedUpDetails: number; lessonsAdded: number }> {
  if (!supabase) return { toppedUpDetails: 0, lessonsAdded: 0 }
-
- const { data: details, error: dErr } = await supabase
-  .from("payment_details")
-  .select("id, class_id, lesson_count, description")
-  .eq("payment_id", opts.paymentId)
- if (dErr) throw dErr
-
- let toppedUpDetails = 0
- let lessonsAdded = 0
- const now = new Date().toISOString()
-
- for (const raw of details ?? []) {
-  const detailId = String((raw as { id: unknown }).id)
-  const classId =
-   (raw as { class_id?: string | null }).class_id != null
-    ? String((raw as { class_id: string }).class_id)
-    : ""
-  const lessons = Number((raw as { lesson_count?: unknown }).lesson_count ?? 0)
-  if (!classId || !Number.isFinite(lessons) || lessons <= 0) continue
-
-  const classCtx = await fetchClassEntitlementContext(classId)
-  if (!classCtx || !usesEntitlementRosterModel(classCtx.academicYearLabel)) continue
-  if (classCtx.namespace.courseGroup === "homework") continue
-
-  const { data: existingEv, error: exErr } = await supabase
-   .from("entitlement_consumption_events")
-   .select("id")
-   .eq("payment_detail_id", detailId)
-   .eq("reason", "entitlement_top_up")
-   .maybeSingle()
-  if (exErr) throw exErr
-  if (existingEv) continue
-
-  const isTrial = isTrialPaymentDetailDescription(
-   (raw as { description?: string | null }).description
-  )
-
-  const { data: enr, error: enrErr } = await supabase
-   .from("student_class_enrollments")
-   .select("id, enrollment_period, enroll_date")
-   .eq("student_id", opts.studentId)
-   .eq("class_id", classId)
-   .eq("status", "就讀中")
-   .maybeSingle()
-  if (enrErr) throw enrErr
-  if (!enr && !isTrial) {
-   console.warn(
-    `[topUpEntitlementsForPayment] 無就讀中報讀，略過抬池 payment_detail=${detailId} class=${classId}`
-   )
-   continue
-  }
-
-  const enrollmentId = enr != null ? String((enr as { id: string }).id) : null
-  const period = normalizeEnrollmentPeriod(
-   (enr as { enrollment_period?: string | null } | null)?.enrollment_period ?? null
-  )
-  const pool = await ensureEntitlementPoolAndDeclarations({
-   enrollmentId,
-   studentId: opts.studentId,
-   classId,
-   enrollmentPeriod: period,
-   enrollDate: (enr as { enroll_date?: string | null } | null)?.enroll_date ?? null,
-   sourceEventType: "enrollment_auto",
-   isTrial,
-   mintOnly: isTrial && !enrollmentId,
-  })
-  if (!pool) continue
-
-  const { data: poolRow, error: poolErr } = await supabase
-   .from("student_entitlement_pools")
-   .select("id, initial_lessons, remaining_lessons")
-   .eq("id", pool.id)
-   .maybeSingle()
-  if (poolErr) throw poolErr
-  if (!poolRow) continue
-
-  const initial = Number((poolRow as { initial_lessons?: number }).initial_lessons ?? 0)
-  const remaining = Number((poolRow as { remaining_lessons?: number }).remaining_lessons ?? 0)
-  const { error: updErr } = await supabase
-   .from("student_entitlement_pools")
-   .update({
-    initial_lessons: initial + lessons,
-    remaining_lessons: remaining + lessons,
-    updated_at: now,
-   })
-   .eq("id", pool.id)
-  if (updErr) throw updErr
-
-  const { error: evErr } = await supabase.from("entitlement_consumption_events").insert({
-   pool_id: pool.id,
-   student_id: opts.studentId,
-   schedule_id: null,
-   attendance_detail_id: null,
-   declaration_id: null,
-   payment_detail_id: detailId,
-   delta_lessons: lessons,
-   reason: "entitlement_top_up",
-  })
-  if (evErr) {
-   // 唯一鍵衝突＝已抬過（併發）；視為成功
-   if (!String(evErr.message).includes("entitlement_events_payment_detail_reason")) {
-    throw evErr
-   }
-   continue
-  }
-
-  toppedUpDetails += 1
-  lessonsAdded += lessons
- }
-
- return { toppedUpDetails, lessonsAdded }
+ void opts.studentId
+ const { error } = await supabase.rpc("mark_payment_received_command", {
+  p_payment_id: opts.paymentId,
+ })
+ if (error) throw error
+ return { toppedUpDetails: 0, lessonsAdded: 0 }
 }
 
 /**
- * 作廢單據後：對該單已 top_up 嘅學費明細做 clawback（冪等；可令池短暫變負）。
+ * 作廢退堂已併入 `void_payment_apply`／`void_payment_command`。
+ * 保留此函式以免舊呼叫端編譯失敗；不再寫尚餘。
  */
-export async function clawbackEntitlementsForPayment(opts: {
+export async function clawbackEntitlementsForPayment(_opts: {
  paymentId: string
  studentId: string
 }): Promise<{ clawedBackDetails: number; lessonsRemoved: number }> {
- if (!supabase) return { clawedBackDetails: 0, lessonsRemoved: 0 }
-
- const { data: details, error: dErr } = await supabase
-  .from("payment_details")
-  .select("id")
-  .eq("payment_id", opts.paymentId)
- if (dErr) throw dErr
- const detailIds = (details ?? []).map((r) => String((r as { id: unknown }).id))
- if (detailIds.length === 0) return { clawedBackDetails: 0, lessonsRemoved: 0 }
-
- const { data: topUps, error: tErr } = await supabase
-  .from("entitlement_consumption_events")
-  .select("id, pool_id, payment_detail_id, delta_lessons")
-  .in("payment_detail_id", detailIds)
-  .eq("reason", "entitlement_top_up")
- if (tErr) throw tErr
-
- let clawedBackDetails = 0
- let lessonsRemoved = 0
- const now = new Date().toISOString()
-
- for (const raw of topUps ?? []) {
-  const paymentDetailId = String((raw as { payment_detail_id: unknown }).payment_detail_id)
-  const poolId = String((raw as { pool_id: unknown }).pool_id)
-  const lessons = Number((raw as { delta_lessons?: unknown }).delta_lessons ?? 0)
-  if (!Number.isFinite(lessons) || lessons <= 0) continue
-
-  const { data: existingCb, error: cbExErr } = await supabase
-   .from("entitlement_consumption_events")
-   .select("id")
-   .eq("payment_detail_id", paymentDetailId)
-   .eq("reason", "entitlement_clawback")
-   .maybeSingle()
-  if (cbExErr) throw cbExErr
-  if (existingCb) continue
-
-  const { data: poolRow, error: poolErr } = await supabase
-   .from("student_entitlement_pools")
-   .select("id, initial_lessons, remaining_lessons")
-   .eq("id", poolId)
-   .maybeSingle()
-  if (poolErr) throw poolErr
-  if (!poolRow) continue
-
-  const initial = Number((poolRow as { initial_lessons?: number }).initial_lessons ?? 0)
-  const remaining = Number((poolRow as { remaining_lessons?: number }).remaining_lessons ?? 0)
-  const { error: updErr } = await supabase
-   .from("student_entitlement_pools")
-   .update({
-    initial_lessons: Math.max(0, initial - lessons),
-    remaining_lessons: remaining - lessons,
-    updated_at: now,
-   })
-   .eq("id", poolId)
-  if (updErr) throw updErr
-
-  const { error: evErr } = await supabase.from("entitlement_consumption_events").insert({
-   pool_id: poolId,
-   student_id: opts.studentId,
-   schedule_id: null,
-   attendance_detail_id: null,
-   declaration_id: null,
-   payment_detail_id: paymentDetailId,
-   delta_lessons: -lessons,
-   reason: "entitlement_clawback",
-  })
-  if (evErr) {
-   if (!String(evErr.message).includes("entitlement_events_payment_detail_reason")) {
-    throw evErr
-   }
-   continue
-  }
-
-  clawedBackDetails += 1
-  lessonsRemoved += lessons
- }
-
-  return { clawedBackDetails, lessonsRemoved }
+ return { clawedBackDetails: 0, lessonsRemoved: 0 }
 }
 
 async function pendingUnitsForClassInPeriod(opts: {

@@ -67,13 +67,6 @@ function mapPoolSummary(
  }
 }
 
-async function actorMeta(): Promise<{ email: string | null; name: string | null }> {
- if (!supabase) return { email: null, name: null }
- const { data } = await supabase.auth.getUser()
- const email = data.user?.email?.trim().toLowerCase() || null
- return { email, name: null }
-}
-
 export async function fetchPoolsForStudent(
  studentId: string
 ): Promise<EntitlementPoolSummary[]> {
@@ -138,7 +131,7 @@ export async function fetchRecentPoolAdjustments(opts?: {
  })
 }
 
-/** 單池增減堂數（G2a／其他）；delta 可正可負，不可為 0 */
+/** 單池增減堂數（G2a／其他）；delta 可正可負，不可為 0。僅外星人。 */
 export async function adjustEntitlementPool(opts: {
  poolId: string
  deltaLessons: number
@@ -150,56 +143,26 @@ export async function adjustEntitlementPool(opts: {
  const notes = opts.notes.trim()
  if (notes.length < 2) throw new Error("請填寫調動原因備註（至少 2 字）")
  const delta = Number(opts.deltaLessons)
- if (!Number.isFinite(delta) || delta === 0) throw new Error("調動堂數不可為 0")
+ if (!Number.isFinite(delta) || delta === 0 || !Number.isInteger(delta)) {
+  throw new Error("調動堂數須為非 0 整數")
+ }
 
  const { data: pool, error: poolErr } = await supabase
   .from("student_entitlement_pools")
-  .select(
-   "id, student_id, class_id, package_type, remaining_lessons, initial_lessons, source_enrollment_id"
-  )
+  .select("id, student_id")
   .eq("id", opts.poolId)
   .maybeSingle()
  if (poolErr) throw poolErr
  if (!pool) throw new Error("找不到已繳堂數記錄")
 
- const before = Number((pool as { remaining_lessons?: number }).remaining_lessons ?? 0)
- const after = before + delta
- const initial = Number((pool as { initial_lessons?: number }).initial_lessons ?? 0)
- const nextInitial = delta > 0 ? initial + delta : Math.max(0, initial + delta)
- const now = new Date().toISOString()
- const actor = await actorMeta()
- const batchId = crypto.randomUUID()
-
- const { error: updErr } = await supabase
-  .from("student_entitlement_pools")
-  .update({
-   remaining_lessons: after,
-   initial_lessons: nextInitial,
-   updated_at: now,
-  })
-  .eq("id", opts.poolId)
- if (updErr) throw updErr
-
- const classId = (pool as { class_id?: string | null }).class_id
- if (classId == null || String(classId) === "") {
-  throw new Error("此池未掛班，無法寫入調動紀錄")
- }
-
- const { error: insErr } = await supabase.from("entitlement_pool_adjustments").insert({
-  adjustment_batch_id: batchId,
-  pool_id: opts.poolId,
-  student_id: String((pool as { student_id: string }).student_id),
-  class_id: String(classId),
-  delta_lessons: delta,
-  reason_code: opts.reasonCode,
-  notes,
-  related_payment_id: opts.relatedPaymentId ?? null,
-  before_remaining: before,
-  after_remaining: after,
-  created_by_email: actor.email,
-  created_by_name: actor.name,
+ const { error } = await supabase.rpc("adjust_entitlement_pool", {
+  p_pool_id: opts.poolId,
+  p_delta_lessons: delta,
+  p_reason_code: opts.reasonCode,
+  p_notes: notes,
+  p_related_payment_id: opts.relatedPaymentId ?? undefined,
  })
- if (insErr) throw insErr
+ if (error) throw error
 
  const pools = await fetchPoolsForStudent(String((pool as { student_id: string }).student_id))
  const updated = pools.find((p) => p.id === opts.poolId)
@@ -207,7 +170,7 @@ export async function adjustEntitlementPool(opts: {
  return updated
 }
 
-/** 由來源池搬堂去目標池（G2b／轉科／送親友）；兩邊學生可不同（送親友） */
+/** 由來源池搬堂去目標池（G2b／轉科／送親友）；兩邊學生可不同（送親友）。僅外星人。 */
 export async function transferEntitlementLessons(opts: {
  fromPoolId: string
  toPoolId: string
@@ -219,86 +182,28 @@ export async function transferEntitlementLessons(opts: {
  const notes = opts.notes.trim()
  if (notes.length < 2) throw new Error("請填寫搬堂原因備註（至少 2 字）")
  const lessons = Number(opts.lessons)
- if (!Number.isFinite(lessons) || lessons <= 0) throw new Error("搬堂數須為正數")
+ if (!Number.isFinite(lessons) || lessons <= 0 || !Number.isInteger(lessons)) {
+  throw new Error("搬堂數須為正整數")
+ }
  if (opts.fromPoolId === opts.toPoolId) throw new Error("來源池同目標池不可相同")
 
  const { data: rows, error } = await supabase
   .from("student_entitlement_pools")
-  .select(
-   "id, student_id, class_id, package_type, remaining_lessons, initial_lessons, source_enrollment_id"
-  )
+  .select("id, student_id")
   .in("id", [opts.fromPoolId, opts.toPoolId])
  if (error) throw error
  const from = (rows ?? []).find((r) => String((r as { id: string }).id) === opts.fromPoolId)
  const to = (rows ?? []).find((r) => String((r as { id: string }).id) === opts.toPoolId)
  if (!from || !to) throw new Error("找不到來源或目標已繳堂數記錄")
- const fromClassId = (from as { class_id?: string | null }).class_id
- const toClassId = (to as { class_id?: string | null }).class_id
- if (fromClassId == null || toClassId == null) {
-  throw new Error("此池未掛班，無法寫入調動紀錄")
- }
 
- const fromBefore = Number((from as { remaining_lessons?: number }).remaining_lessons ?? 0)
- const toBefore = Number((to as { remaining_lessons?: number }).remaining_lessons ?? 0)
- const fromAfter = fromBefore - lessons
- const toAfter = toBefore + lessons
- const fromInitial = Number((from as { initial_lessons?: number }).initial_lessons ?? 0)
- const toInitial = Number((to as { initial_lessons?: number }).initial_lessons ?? 0)
- const now = new Date().toISOString()
- const actor = await actorMeta()
- const batchId = crypto.randomUUID()
-
- const { error: fromUpd } = await supabase
-  .from("student_entitlement_pools")
-  .update({
-   remaining_lessons: fromAfter,
-   initial_lessons: Math.max(0, fromInitial - lessons),
-   updated_at: now,
-  })
-  .eq("id", opts.fromPoolId)
- if (fromUpd) throw fromUpd
-
- const { error: toUpd } = await supabase
-  .from("student_entitlement_pools")
-  .update({
-   remaining_lessons: toAfter,
-   initial_lessons: toInitial + lessons,
-   updated_at: now,
-  })
-  .eq("id", opts.toPoolId)
- if (toUpd) throw toUpd
-
- const { error: insErr } = await supabase.from("entitlement_pool_adjustments").insert([
-  {
-   adjustment_batch_id: batchId,
-   pool_id: opts.fromPoolId,
-   student_id: String((from as { student_id: string }).student_id),
-   class_id: String(fromClassId),
-   delta_lessons: -lessons,
-   reason_code: opts.reasonCode,
-   notes,
-   related_pool_id: opts.toPoolId,
-   before_remaining: fromBefore,
-   after_remaining: fromAfter,
-   created_by_email: actor.email,
-   created_by_name: actor.name,
-  },
-  {
-   adjustment_batch_id: batchId,
-   pool_id: opts.toPoolId,
-   student_id: String((to as { student_id: string }).student_id),
-   class_id: String(toClassId),
-   delta_lessons: lessons,
-   reason_code: opts.reasonCode,
-   notes,
-   related_pool_id: opts.fromPoolId,
-   before_remaining: toBefore,
-   after_remaining: toAfter,
-   created_by_email: actor.email,
-   created_by_name: actor.name,
-  },
- ])
- if (insErr) throw insErr
+ const { error: rpcErr } = await supabase.rpc("transfer_entitlement_lessons", {
+  p_from_pool_id: opts.fromPoolId,
+  p_to_pool_id: opts.toPoolId,
+  p_lessons: lessons,
+  p_reason_code: opts.reasonCode,
+  p_notes: notes,
+ })
+ if (rpcErr) throw rpcErr
 
  const fromPools = await fetchPoolsForStudent(String((from as { student_id: string }).student_id))
  const toPools = await fetchPoolsForStudent(String((to as { student_id: string }).student_id))
