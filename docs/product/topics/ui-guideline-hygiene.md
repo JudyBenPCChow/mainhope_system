@@ -6,7 +6,7 @@
 | 優先 | 低 |
 | 範圍 | 對齊 [`UI_DESIGN_INSTRUCTIONS.md`](../../meta/UI_DESIGN_INSTRUCTIONS.md) 其餘未改項；**唔改**收款／點名／報讀業務邏輯 |
 | 不含 | 已落地之衛生修（`role="alert"`、token 色、專長科目共用常數、狀態 Tag 字典、失敗上報）；登入失敗不上報（刻意） |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 來源 | 2026-08-31 UI 指引盤點；安全項已先改 |
 
 ## 開工閘

@@ -2,10 +2,10 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（等 P0-1 收緊直接改之後；UI 未開工） |
+| 狀態 | `open`（P0-1 已收緊；申請 UI 未開工） |
 | 優先 | 中 |
 | 來源 | 2026-08-15 P0-1 決策 M19 |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 相關 | [`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)、[`payment-entitlement-correction-ui.md`](./payment-entitlement-correction-ui.md)（現有直接改頁） |
 
 ## 已定產品

@@ -7,7 +7,7 @@
 | 範圍 | **alien** 可暫時以另一位職員（admin／manager／finance／teacher）視角檢視後台畫面，用於對方報「畫面有問題」時支援排查 |
 | 角色 | 僅 **alien** 可啟動；模擬對象為任意已有 `app_users`／`app_user_roles` 嘅職員 |
 | 不含 | 真登入對方帳密、改對方密碼、雙角色（自己帳戶加多個 role——已有 `RoleSwitcher`／`switch_my_mgmt_role`）、家長 Portal view-as（已有） |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 等待中 |
 | 靈感來源 | 2026-08-05：對方報畫面問題時，要用佢角色睇實際畫面 |
 
 ## 結論

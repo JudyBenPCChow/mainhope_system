@@ -7,7 +7,7 @@
 | 範圍 | `2627`（2026-09-01 → 2027-06-30）常規學年全公司員工守則（繁中書面語、可列印） |
 | 不含 | 技術實作、給 AI 指示、暑期兩期制全文、計糧全文、機構稱呼專章、每周課表、個別老師名單 |
 | 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.23**／2026-10-25）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf)（列印版仍為舊稿，要發佈 Word／PDF 須另行明示） |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 已完成 |
 | 立案 | 2026-08-08 |
 | 上次更新 | 2026-10-25 |
 
@@ -117,7 +117,7 @@
 
 ## 待做
 
-工程已關帳。營運可 WhatsApp／列印發佈（見 [`PUBLISH_CHECKLIST.md`](../../year/2627/PUBLISH_CHECKLIST.md)）。WIP 可刪：[`2627-regular-year-ops-guide-decisions-wip.md`](./2627-regular-year-ops-guide-decisions-wip.md)。
+工程已關帳。營運可 WhatsApp／列印發佈（見 [`PUBLISH_CHECKLIST.md`](../../year/2627/PUBLISH_CHECKLIST.md)）。
 
 ## 相關
 
@@ -126,7 +126,6 @@
 - 校曆政策：[`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md)
 - 功輔月費：[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)
 - 試堂總則：[`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)
-- WIP（可刪）：[`2627-regular-year-ops-guide-decisions-wip.md`](./2627-regular-year-ops-guide-decisions-wip.md)
 - 功輔：[`homework-tutoring.md`](./homework-tutoring.md)
 - 時間表（獨立；本指引不載課表）：[`2627-september-timetable.md`](./2627-september-timetable.md)
 - 政策索引：[`OPS_POLICIES.md`](../policies/_INDEX.md)

@@ -2,11 +2,11 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（2026-09-01 已拍板並開工） |
+| 狀態 | `done`（2026-09 波次 1–4 已落地；2026-11-16 補關帳） |
 | 優先 | 中 |
 | 範圍 | 學生管理 → 學生詳情完整頁：紀錄頁 chrome、分頁、先讀後編、未儲存、`?tab=`；流動裝置 sheet 頂列關閉 |
 | 不含 | 預覽側板；收款／請假業務邏輯；老師詳情（班別見 [`class-detail-record-page.md`](./class-detail-record-page.md)） |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 已完成 |
 | 立案 | 2026-09-01 |
 | 用語 | 本分題以繁體書面語書寫。 |
 
@@ -38,4 +38,4 @@
 | 3 手機 sheet 頂列關閉 | 已落地 |
 | 4 抽出共用殼 | 2026-09-02：`DetailLayerChrome`／`RecordPageHeader`／`RecordPageTabs`／`RecordField`／`UnsavedChangesDialog`；學生頁改為引用 |
 
-產品句第 3 條「本期只改學生詳情」其後已另開班別分題；老師詳情仍未對齊。
+產品句第 3 條「本期只改學生詳情」其後已另開班別分題並關帳。老師詳情仍未對齊，不屬本題，不另開則維持現況。

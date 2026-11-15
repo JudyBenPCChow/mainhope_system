@@ -2,13 +2,13 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | open |
+| 狀態 | `open` |
 | 優先 | 中 |
 | 建立 | 2026-10-24 |
 | 對象 | 工程 |
 | 目的 | 追收、計糧、未點名等會讓人據此行動的數字，要麼讀完，要麼整次失敗；算法維持現有函式 |
 | 不含 | 提高 PostgREST 列數上限；用 service role 避開逾時；新寫追收或計糧聚合函式；用列數代替人數或堂數 |
-| 索引 | 未列入 [`BACKLOG.md`](../BACKLOG.md)（索引只在 `main` 更新） |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 相關 | [學費追收](./tuition-chase-list.md) · [出席紀錄日期範圍](./attendance-records-range-query.md) · 錯題 [PostgREST 預設 1000 列](../../meta/AGENT_LESSONS.md) |
 | 盤點 | 2026-10-24 對 MainHope_production 抽樣；同日對抗檢查後收斂方案 |
 

@@ -6,7 +6,7 @@
 | 優先 | 中 |
 | 範圍 | 側欄「智能分析」下：**營運總覽**／**員工績效**／**成本統計**——分類是否合理；管理者能否觀察／控制成本與利潤 |
 | 不含 | 本檔唔開工改碼；KPI 實作仍跟各母題；阿Po／AI 報表 |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 等待中 |
 | 立案 | 2026-08-24（2026-08-29 由舊對話還原；從未入 git） |
 | 路由 | `/MgmtDashboard`、`/StaffPerformance`、`/HkExpenses`（manager／alien） |
 

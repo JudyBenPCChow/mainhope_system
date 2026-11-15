@@ -7,7 +7,7 @@
 | 範圍 | 用 WhatsApp Cloud API 把**家長／第一聯絡人**一對一對話收進明學後台；職員喺學生頁（或未讀列表）睇同回，減少跳去 Business Suite／WhatsApp App |
 | 角色（暫定） | 回覆：行政／管理層／外星人；老師是否可睇**未決**。財務只讀？未決 |
 | 不含 | 現有 `/Inbox` 營運／系統通知（`inbox_events`，唔合併成同一個產品）；WeChat 對話；群組；招生廣播工作台（可後做 template）；用 `selected_item_id` 深連結 Facebook Inbox；買現成 inbox 當職員主畫面 |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 等待中 |
 | 立案 | 2026-08-31：現況掣開 `wa.me`，職員來回切 WhatsApp／Business Suite；問 Cloud API 自建 vs 現成平台 |
 
 ## 開工閘

@@ -7,7 +7,7 @@
 | 範圍 | 教材與機密文件存 **Supabase Storage**；掛科目／班別／某一堂排程；老師可把指定教材推給另一位老師喺指定堂次使用 |
 | 角色（暫定） | 上載／指派：老師＋行政以上；機密檔只限 admin／manager／finance／alien。權限跟當堂 `schedules.teacher_id`（含代堂） |
 | 不含 | 另起一套獨立文件站、取代 OneDrive 做 Word 同版草稿、營運政策閱讀頁（見 [ops-docs-viewer.md](./ops-docs-viewer.md)）、家長／學生端派發 |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 等待中 |
 | 立案 | 2026-08-24：OneDrive 無法按班／科／堂劃權限；主管（例：Mark Yu）無法指定下屬（例：Liam Lai）某日教某份教材 |
 
 ## 結論

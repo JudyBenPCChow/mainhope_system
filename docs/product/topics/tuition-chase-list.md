@@ -11,7 +11,7 @@
 | 實作分支 | `feature/tuition-chase-page` |
 | 顧問意見 | [產品／UX](./tuition-chase-consultation.md)、[獨立評審＋實作](./tuition-chase-list-consultant-feedback.md)；收斂見 §0 |
 
-本檔＝本工程 backlog 正文。索引一句見 [`BACKLOG.md`](../BACKLOG.md)。發起人目標與批評來自多輪對話；單位由「月」改為「常規第 N 期」是其後糾正，初衷不變。2026-09-10 兩份顧問意見已讀過：有道理且適合本社的寫入下文；不適合的見 §0.2，不納入實作。
+本檔＝本工程 backlog 正文。索引見 [`BACKLOG.md`](../BACKLOG.md) 已完成。發起人目標與批評來自多輪對話；單位由「月」改為「常規第 N 期」是其後糾正，初衷不變。2026-09-10 兩份顧問意見已讀過：有道理且適合本社的寫入下文；不適合的見 §0.2，不納入實作。
 
 ---
 

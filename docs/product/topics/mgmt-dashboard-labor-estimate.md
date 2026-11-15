@@ -6,7 +6,7 @@
 | 優先 | 中 |
 | 範圍 | `/MgmtDashboard` 毛利／毛利率（及純利減項）：未結算月份以計糧草稿 `payroll_runs.snapshot` 當預估工資 |
 | 不含 | 成本分析 `/HkExpenses`（只計已確認日記帳）；員工績效；觸發 live 重算；改計糧結算／過帳 |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 已完成 |
 | 觸發 | 2026-09-08：計糧草稿快取已落地，管理層要月中睇毛利，唔好一直「—」 |
 | 相關 | [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 4 · [`mgmt-dashboard-kpi-spec.md`](./mgmt-dashboard-kpi-spec.md) · [`hk-expense-cost-stats.md`](./hk-expense-cost-stats.md) · [`intelligence-analytics-ia-review.md`](./intelligence-analytics-ia-review.md) |
 

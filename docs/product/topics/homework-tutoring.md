@@ -5,13 +5,12 @@
 | 狀態 | `done`（2026-08-29 關帳；計糧見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)） |
 | 優先 | 中 |
 | 範圍 | 一班制（中學部場次）、按月繳費報讀、課室佔用、導師月度編更、獨立功輔校曆；三角色畫面 |
-| 不含 | 計糧功輔時薪及 Christine 功輔佣金（見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)）；暑期功輔產品化；學生點名紙；宣傳物料；專科式請假／補堂／扣堂。小學部場次見 [`homework-tutoring-primary-division.md`](./homework-tutoring-primary-division.md)。每日功課進度另題 [`homework-tutoring-daily-logs.md`](./homework-tutoring-daily-logs.md)（後台填寫進行中；家長 Portal 未上線前前線仍用 Notion） |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 不含 | 計糧功輔時薪及 Christine 功輔佣金（見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)）；暑期功輔產品化；學生點名紙；宣傳物料；專科式請假／補堂／扣堂。小學部場次見 [`homework-tutoring-primary-division.md`](./homework-tutoring-primary-division.md)。每日功課進度另題 [`homework-tutoring-daily-logs.md`](./homework-tutoring-daily-logs.md)（後台已合入；Portal 頁已有，驗收未關） |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 已完成 |
 | 盤點／定案 | 2026-08-01；待決回覆吸納 2026-08-11；**2627 學部／課室／收費** 2026-08-25 |
 | 上次更新 | 2026-10-30（當值編更可同時修改中學部與小學部） |
 | 相關 | [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)、[`payroll-engine.md`](./payroll-engine.md)、[`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) §4、[`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)、下游員工守則 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（§7 校曆＋月費＋編更已寫；工程已關帳） |
 | 營運事實整理（vault） | `Mainhope_admin/40-課程/功課輔導班-產品特點與工作流程.md`（2026-08-09；客觀事實，非產品定案；請假段勿當功輔） |
-| 待決 WIP | [`homework-tutoring-decisions-wip.md`](./homework-tutoring-decisions-wip.md)（H1–H11 已收；可刪） |
 | UI 設計 v1 | （首輪備查） |
 | UI 設計 v2 | （**現行：全角色**） |
 
@@ -225,7 +224,6 @@
 
 | 用途 | 路徑 |
 | --- | --- |
-| 待決 WIP | [`homework-tutoring-decisions-wip.md`](./homework-tutoring-decisions-wip.md) |
 | 正式畫面 | `src/components/homeworkTutoring/` |
 | 排課 §4 | [`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) |
 | 月費 | [`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) |

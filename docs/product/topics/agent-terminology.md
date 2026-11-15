@@ -6,7 +6,7 @@
 | 優先 | 中 |
 | 範圍 | 決策過程。員工讀本係 [`TERMINOLOGY.md`](../../meta/TERMINOLOGY.md) |
 | 載體 | 員工 md ＋ `.cursor/rules/terminology.mdc`。改詞見 `terminology-sync.mdc` |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 已完成 |
 | 立案 | 2026-08-15 |
 | 上次更新 | 2026-08-16（員工用語表；同步規則） |
 

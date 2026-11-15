@@ -6,7 +6,7 @@
 | 優先 | 中 |
 | 範圍 | `/Schedule` 清單、日期與 URL、快取、資料載入、可信統計、三種工作視圖、桌面右側預覽及 `/Schedule/:scheduleId` 完整紀錄頁 |
 | 不含 | 排程、點名、補堂、代堂或功課輔導班佔室規則變更；2627 時間表資料；`makeup_of=` 標記；側欄 IA／授權模型 |
-| 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 依賴 | [`list-data-cache.md`](./list-data-cache.md) 已完成；開工前須對齊校舍假期修正的最新主線 |
 | 方案日期 | 2026-09-02；2026-09-03 依技術及行政營運審閱修訂 |
 | 審閱 | [`schedule-manage-page-refactor-review.md`](./schedule-manage-page-refactor-review.md)；[`schedule-manage-page-refactor-admin-ops-review.md`](./schedule-manage-page-refactor-admin-ops-review.md) |
