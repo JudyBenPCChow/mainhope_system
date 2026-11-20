@@ -5,6 +5,7 @@ description: >-
   時段、老師、就讀中人數），並以固定純文字格式回傳。Use when the user says
   中四中文、中三數學、年級加科目、查班、班別情況、有幾班、幾多人，
   or lists multiple grade+subject pairs.
+  未指定年級與科目、只問各班人數或全部班別：改走 class-roster-pdf。
 ---
 
 # 年級＋科目 → 班別情況（即時查庫）
@@ -22,6 +23,8 @@ description: >-
 - `中四中文`／`中四級中文`／`中四 中文`
 - `中三數學、中五英文`（多組：依請求順序各印一塊）
 - `查中二化學班別`／`中一有幾班英文`
+
+沒有指定年級與科目，只問各班人數、列出目前各班、或全部班別時間與學生：改走 `class-roster-pdf`，不要用本格式逐科猜。
 
 預設範圍：**目前常規學年專科班**（`academic_years.label = '2627'` 或 `course_code_full like '2627-%'`；`class_kind = 'group'`）。
 

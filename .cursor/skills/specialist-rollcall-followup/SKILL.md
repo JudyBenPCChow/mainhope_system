@@ -1,10 +1,12 @@
 ---
 name: specialist-rollcall-followup
 description: >-
-  查 production 專科班排程／點名異常（未點名、部分點名、出席無有效宣告等），
+  查 production 專科班點名異常（部分點名、出席無有效宣告、非白名單出席狀態），
   匯出書面報告，並按老師產出可貼 WhatsApp 的催點名／核對訊息。
-  Use when the user asks 專科點名檢查、未點名、點名異常、出席宣告、
+  Use when the user asks 專科點名檢查、點名異常、部分點名、出席宣告、
   催老師點名、WhatsApp 點名提醒、某日期範圍專科出席檢查。
+  未點名提醒、各人一段、補點名電郵改走 missing-roll-call-reminder。
+  問未點名信何時發出改走 scheduled-email-status。
 ---
 
 # 專科班點名跟進（查庫 → 報告 → WhatsApp）
@@ -17,7 +19,9 @@ description: >-
 
 ## 何時用
 
-用戶叫：專科點名檢查、未點名、部分點名、奇怪宣告、出席無宣告、催老師補點、產出 WhatsApp 提醒、某段日期（如 10/1–10/7）專科出席。
+用戶叫：專科點名檢查、部分點名、奇怪宣告、出席無宣告、催老師補點、產出 WhatsApp 提醒、某段日期（如 10/1–10/7）專科出席。
+
+用戶只要此刻未點名的系統訊息或補點名電郵：改走 `missing-roll-call-reminder`，不要出本報告。問提醒何時發出：改走 `scheduled-email-status`。一段日期的點名、補堂、試堂一併檢查：改走 `ops-exception-scan`。
 
 ## 步驟
 

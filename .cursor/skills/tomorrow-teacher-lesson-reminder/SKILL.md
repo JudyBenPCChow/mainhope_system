@@ -4,6 +4,8 @@ description: >-
   查 production 香港「明日」各老師課堂，組電郵正文（含學生／錄影 Zoom／事假病假／備註）。
   Use when the user says 明日課堂提醒、明天課堂電郵、老師明日排程通知、每晚課堂提醒、
   生成各老師明天課堂, or asks to email teachers tomorrow's lessons.
+  問寄出了沒有、今日有沒有發出：改走 scheduled-email-status，不要重組電郵。
+  只問一位老師明日有沒有堂或試堂：只回該人純文字，不要組全員電郵、不要寄。
 ---
 
 # 老師明日課堂提醒（電郵）
@@ -17,6 +19,10 @@ description: >-
 ## 何時用
 
 用戶說：**明日課堂提醒**、明天課堂電郵、老師明日排程通知、每晚課堂提醒、生成各老師明天課堂。
+
+問寄出了沒有：改走 `scheduled-email-status`，不要組電郵、不要查 GitHub Actions。
+
+只問一位老師明日有沒有堂或試堂：目標日與查詢仍用本 skill，回覆只留該人的課堂（含試堂學生）。不要貼其他老師，不要寄。同名多於一人時先列出再問。
 
 ## 步驟
 

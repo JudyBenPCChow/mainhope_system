@@ -4,6 +4,7 @@ description: >-
   查 production 產出 2627 未繳學費清單 PDF（專科常規第 N 期＋功輔當月月費），
   並可寄給 Sophie。Use when the user asks 追收學費、未交學費名單、十月學費追收、
   學費追收 PDF、寄 Sophie 學費清單、或重出 2627_PERIOD2_TUITION_CHASE.pdf。
+  問追收信寄出了沒有：改走 scheduled-email-status，不要重出 PDF。
 ---
 
 # 追收學費清單 PDF ＋寄 Sophie
@@ -11,6 +12,8 @@ description: >-
 從 **MainHope_production** 即時查未繳學費，產出橫式 A4 PDF；用戶要求寄出時寄給 Sophie。
 
 無查庫權限／無寄信金鑰：**停、通知使用者**。見 `no-forced-output-without-access.mdc`、`agent-mail.mdc`。不要用舊 JSON／示範資料充當今日名單。
+
+問追收信寄出了沒有：改走 `scheduled-email-status`，不要重出 PDF、不要寄。
 
 ## 口徑
 
