@@ -3,7 +3,9 @@ name: missing-roll-call-reminder
 description: >-
   查 production 已下課但尚未點名的課堂。對話用系統訊息；寄電郵時改用通知文，並另附一封給行政的總結。
   Use when the user says 未點名提醒、未提名提醒、補點名提醒、生成各人一段、再出一次提醒、
-  寄電郵、給行政的未點名總結, or asks to send the roll-call notice.
+  寄未點名提醒、給行政的未點名總結, or asks to send the roll-call notice.
+  問何時發出、有沒有寄出、最新一次提醒涉及誰：改走 scheduled-email-status，不要重出提醒。
+  專科點名異常報告改走 specialist-rollcall-followup。
 ---
 
 # 未點名提醒
@@ -16,6 +18,8 @@ description: >-
 
 用戶說：**未點名提醒**、**未提名提醒**、補點名提醒、再出一次提醒、各人一段。
 
+問何時發出、有沒有寄出、最新一次涉及誰：改走 `scheduled-email-status`，不要重出提醒。專科部分點名、出席宣告、點名異常報告：改走 `specialist-rollcall-followup`。
+
 ## 步驟
 
 1. 月份：用戶指定用該曆月；無指定用香港今日所在曆月。起日為該月 1 日；迄日為香港今日（只計已下課）。
@@ -25,23 +29,31 @@ description: >-
 5. 對話貼文用「系統訊息」。用戶要求寄電郵時，改用「電郵通知」，並另寫一封「行政總結」。測試時只寄用戶指定的老師與行政總結，收件地址用用戶給的信箱，不要寄去老師本人。
 6. **寄信（固定走 CLI，不要等 MCP）**：先 `node scripts/mcp/resend-mail-server.mjs --status`；未就緒就停。就緒則每人一封老師信＋一封行政總結，用 `--send`（見下）。不要因 `mainhope-mail` MCP loading／discovery timeout 而卡住。
 
+個別老師信只 CC `mainhopehk@gmail.com`。不要把 Christine Fan、Mark Yu、Sophie Yu 放進個別老師信的收件或副本。整體未點名報告只寄這三人，不抄老師、不抄 `mainhopehk@gmail.com`：
+
+- Christine Fan：`cfan@mainhope.edu.hk`
+- Mark Yu：`markyu@mainhope.edu.hk`
+- Sophie Yu：`526956762@qq.com`
+
+用戶本則若另指定收件或副本，以本則為準。
+
 ```bash
 node scripts/mcp/resend-mail-server.mjs --status
 node scripts/mcp/resend-mail-server.mjs --send \
   --to "<notification_email>" \
-  --cc "<行政1>" \
-  --cc "<行政2>" \
+  --cc "mainhopehk@gmail.com" \
   --subject "十月尚未點名提醒（Mr. Liam Lai)" \
   --text "<電郵通知正文>"
 
 node scripts/mcp/resend-mail-server.mjs --send \
-  --to "<行政1>" \
-  --to "<行政2>" \
+  --to "cfan@mainhope.edu.hk" \
+  --to "markyu@mainhope.edu.hk" \
+  --to "526956762@qq.com" \
   --subject "系統報告︰十月尚未點名紀錄報告" \
   --text "<行政總結正文>"
 ```
 
-正式寄老師本人時，收件用 `teachers_private.notification_email`；用戶本則有指定地址則以本則為準。CC／行政收件以用戶本則為準。
+正式寄老師本人時，收件用 `teachers_private.notification_email`；用戶本則有指定地址則以本則為準。
 
 ## 文案
 

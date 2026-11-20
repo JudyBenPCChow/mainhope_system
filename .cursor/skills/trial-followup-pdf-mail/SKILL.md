@@ -3,7 +3,10 @@ name: trial-followup-pdf-mail
 description: >-
   查 production 試堂，按人手定稿版式產出直式 A4 試堂名單 PDF，並可寄到指定電郵。
   Use when the user asks 試堂名單、試堂跟進、未來試堂 PDF、試堂報告寄電郵、
+  明天及後天試堂名單、明日試堂名單、
   或重出 docs/generated/2627/2627_TRIAL_FOLLOWUP_*.pdf。
+  要轉化率、新報讀名單且不要 PDF：改走 trial-new-student-conversion。
+  問試堂報告寄出了沒有：改走 scheduled-email-status，不要重出 PDF。
 ---
 
 # 試堂名單 PDF（跟進轉化）＋寄電郵
@@ -11,6 +14,8 @@ description: >-
 版式真源：用戶改過的 Word 稿（直式 A4）。日後產出 **PDF** 必須跟此欄位與標題；不要自行加長說明、不要改回橫式。
 
 無 MCP `execute_sql`／無寄信金鑰：**停、通知使用者**。見 `no-forced-output-without-access.mdc`、`agent-mail.mdc`。
+
+要轉化率、新註冊或新報讀名單，且不要 PDF：改走 `trial-new-student-conversion`。問試堂報告寄出了沒有：改走 `scheduled-email-status`，不要重出 PDF。
 
 ## 版式（不可改）
 
@@ -31,6 +36,7 @@ description: >-
 - 待跟進：試堂日 ＜ 查庫日、點名為現場（或等價已試）、狀態非取消
 - 未來：試堂日 ≥ 查庫日、非取消
 - 其他跟進：取消等需註明但不入兩表者
+- 用戶指定明天及後天或起迄日：寫入 JSON 前把「未來試堂」收窄到該段，副標寫明起迄。版式與腳本不變。用戶明講只要該段供前台當日參考時，待跟進留空；否則待跟進仍按上列。不要另寫一套版式。
 
 ## 步驟
 

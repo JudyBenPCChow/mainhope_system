@@ -5,12 +5,15 @@ description: >-
   退讀、改試堂價、重複單據診斷。Use when the user asks 安排補堂、調堂、補回取消堂、試堂、
   改期試堂、半價試堂、確認收款、改付款方式、停退、退讀、改為正價、作廢這張單,
   or names students + date/time for makeup, trial, withdraw, or receipt fix on MainHope_production.
+  貼上同事電郵要核對單據時只診斷；未說作廢、改付款、退讀或改價，不要寫庫。
   Not for 未完成補堂 PDF (leave-makeup-followup) or schema migrations.
 ---
 
 # 前台寫入（production：補堂／試堂／退讀／單據）
 
 用戶講完學生、科／班、日時後，**自己查 production、自己寫入**。不要只教人手點掣。
+
+貼上電郵、或只問某幾張單是否重複、多收、價目不符：先診斷並列出單據。該則沒有寫「作廢」「改付款」「退讀」「改價」「確認寫入」，就停，不要改庫。
 
 真源：**MainHope_production**（project ref `gudmbilboyhouotilrvt`）。優先 Supabase MCP `execute_sql`；MCP 不可用則 CLI `projects api-keys` 取 **service_role** + REST。anon／RLS 空陣列 ≠ 庫真係空。缺權限：**停、通知**，不要假資料交差。Cloud Agent 無查庫通道時同樣停；不要改用本對話舊名單。
 
@@ -24,7 +27,8 @@ description: >-
 
 | 用戶意圖 | 做什麼 | 不要做 |
 | --- | --- | --- |
-| 某生請假／取消堂 → 約補堂日時 | 調堂：綁 `leave_makeup_records.makeup_schedule_id` | 當全班改期；喺原班加堂（除非原班就讀＝全部補堂生） |
+| 貼上電郵或單號，問是否重複、多收、價目不符 | 只診斷：單號、狀態、金額、掛了哪筆試堂或報讀 | 未說作廢、改付款、退讀、改價就寫庫 |
+| 某生請假／取消堂 → 約補堂日時 | 調堂：綁 `leave_makeup_records.makeup_schedule_id` | 當全班改期；喺原班加堂（除非原班就讀＝全部補堂生）
 | 未完成補堂總表／PDF | skill `leave-makeup-followup` | 本 skill |
 | 試堂新排／改期／出單／確認收款 | 試堂流程（下） | 當補堂請假處理 |
 | 全班取消堂改日 | 班別詳情「安排補堂」（`makeup_of=`） | 逐個當個別調堂（除非用戶只要部分學生） |
@@ -114,7 +118,7 @@ description: >-
 ### 收款狀態
 
 - 用戶未講已收／確認 → 出單用 **`待收款`**，`payment_method` 可空。  
-- 用戶說「確認收款」→ 改 **`已收款`**，填付款方式；並做試堂入帳（見下）。  
+- 用戶說「確認收款」→ 改 **`已收款`**，填付款方式；並做試堂權益抬池（見下）。  
 - 用戶說「還未收款」而誤標已收款 → **改回待收款**，清付款方式。
 
 ### 確認收款後入帳（必做）
