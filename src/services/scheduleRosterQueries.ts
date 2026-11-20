@@ -503,6 +503,10 @@ export function singleSessionNotOnSchedule(
   enrollment.classId === schedule.classId
   && isSingleSessionEnrollment(enrollment.enrollmentPeriod)
   && !(context.enrollmentScheduleIds.get(enrollment.id) ?? new Set<string>()).has(scheduleId)
+  && !(
+   enrollment.withdrawEffectiveDate
+   && schedule.scheduledDate >= enrollment.withdrawEffectiveDate
+  )
  )
 }
 

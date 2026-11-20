@@ -1470,6 +1470,8 @@ export function ClassDetailView() {
     s.fullName
    )
    if (attOpts === "abort") return
+   let successTitle = "已退讀"
+   let successMessage = `${s.fullName} 已標為已退讀。`
    if (isPrivateClass) {
     await withdrawPrivateEnrollment({
      enrollmentId: s.enrollmentId,
@@ -1505,8 +1507,12 @@ export function ClassDetailView() {
      reason: null,
      ...attOpts,
     })
+    if (prefer.scheduledDate > today) {
+     successTitle = "已安排退讀"
+     successMessage = `${s.fullName} 將自「${prefer.label}」起退讀。該堂之前狀態仍為就讀中，生效當日會改為已退讀。`
+    }
    }
-   pushBanner({ tone: "success", title: "已退讀", message: `${s.fullName} 已標為已退讀。` })
+   pushBanner({ tone: "success", title: successTitle, message: successMessage })
    invalidateStudentsListDataCache()
    invalidateClassesListDataCache()
    invalidateEnrollmentChangesDataCache()
