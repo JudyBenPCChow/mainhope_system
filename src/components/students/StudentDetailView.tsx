@@ -135,6 +135,7 @@ import {
  updateStudent,
  withdrawStudentFromClass,
 } from "@/services/studentQueries"
+import { localYmd } from "@/services/scheduleQueries"
 import {
  fetchStudentEnrollmentChangeTimeline,
  transferStudentClassTime,
@@ -985,6 +986,14 @@ export function StudentDetailView() {
     leaveFromScheduleId: leaveOpt.id,
     reason: withdrawReason.trim() || null,
     ...attOpts,
+   })
+   const scheduledLater = leaveOpt.scheduledDate > localYmd()
+   pushBanner({
+    tone: "success",
+    title: scheduledLater ? "已安排退讀" : "已退讀",
+    message: scheduledLater
+     ? `${studentName} 將自「${leaveOpt.label}」起退讀。該堂之前狀態仍為就讀中，生效當日會改為已退讀。`
+     : `${studentName} 已標為已退讀。`,
    })
    setWithdrawOpen(false)
    setWithdrawTarget(null)

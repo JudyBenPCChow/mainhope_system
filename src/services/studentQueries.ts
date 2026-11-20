@@ -2021,7 +2021,9 @@ export async function purgeMistakenEnrollment(opts: {
  await syncStudentEnrollmentState(studentId)
 }
 
-/** 退讀：可指定未來生效日；生效日前維持就讀中，生效日起標為已退讀。 */
+/** 退讀：可指定未來生效日。生效日前維持就讀中；生效日已到則立即標為已退讀。
+ *  尚未到期的，由 apply_due_enrollment_withdrawals 於香港 00:05 改為已退讀。
+ */
 export async function withdrawStudentFromClass(opts: {
  enrollmentId: string
  studentId: string

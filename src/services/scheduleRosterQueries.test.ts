@@ -227,6 +227,18 @@ describe("schedule roster selectors", () => {
   expect(rows.map((row) => row.studentId)).toEqual(["單堂未選"])
  })
 
+ it("退讀生效日起不再列入沒有報讀此堂", () => {
+  const ctx = context()
+  const row = ctx.enrollments.find((item) => item.studentId === "單堂未選")
+  if (!row) throw new Error("missing fixture")
+  row.withdrawEffectiveDate = "2026-08-01"
+  expect(singleSessionNotOnSchedule(ctx, "schedule-2").map((item) => item.studentId)).toEqual([
+   "單堂未選",
+  ])
+  row.withdrawEffectiveDate = "2026-07-24"
+  expect(singleSessionNotOnSchedule(ctx, "schedule-2")).toEqual([])
+ })
+
  it("試堂保留已確認收款（含已完成）；取消、待改期、無單不上紙", () => {
   expect(activeTrialsForSchedules(context(), ["schedule-2"]).map((row) => row.id)).toEqual([
    "trial-active",
