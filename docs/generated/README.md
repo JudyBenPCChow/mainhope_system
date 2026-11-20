@@ -13,6 +13,7 @@
 | `26sm/26SM_LEAVE_MAKEUP_FOLLOWUP.pdf` | skill `leave-makeup-followup`；`scripts/generate_26sm_leave_makeup_pdf.py --data …`（無 `--data`＝2026-08-16 snapshot） |
 | `26sm/26SM_SUBJECT_GRADE_HEADCOUNT.pdf` | `scripts/generate_26sm_subject_grade_headcount_pdf.py`（2026-08-16 production 就讀人數快照） |
 | `payroll/PAYROLL_GUIDE.docx` | `policies/staffing/PAYROLL_GUIDE.md`（`scripts/generate_payroll_guide_doc.py`） |
+| `ops/PRINTER_SETUP.docx` | `scripts/generate_printer_setup_doc.py`（11 號舖及 17D 舖影印機連接步驟，含設定畫面） |
 | `print/*` | 歷史列印稿 |
 
 時間表 docx／pdf 現放喺 [`../year/2627/timetable/`](../year/2627/timetable/)（與方案 md 同櫃，方便一齊睇）。
